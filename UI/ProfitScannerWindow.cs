@@ -311,6 +311,8 @@ public sealed class ProfitScannerWindow : Window
         });
 #pragma warning restore CS4014
     }
+
+    private void BuildRows()
     {
         rows.Clear();
         foreach (var (recipeId, recipe) in recipeCache.GetAllRecipes())
