@@ -70,4 +70,5 @@ public class ShoppingListEntry
     public int Quantity { get; set; } = 1;
     public string RecipeName { get; set; } = string.Empty;
     public uint ResultItemId { get; set; }
+    public bool SellAsHq { get; set; } = false;
 }

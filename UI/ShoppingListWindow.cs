@@ -83,7 +83,7 @@ public sealed class ShoppingListWindow : Window
 
         // Calculate prices for this recipe
         var cached = priceCache.Get(entry.ResultItemId);
-        var mbPrice = cached?.NqPrice ?? 0;
+        var mbPrice = entry.SellAsHq ? (cached?.HqPrice ?? 0) : (cached?.NqPrice ?? 0);
         var afterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
         var budget = (uint)(afterTax * (1f - config.TargetProfitMargin));
 
@@ -115,13 +115,22 @@ public sealed class ShoppingListWindow : Window
             }
 
             ImGui.SameLine();
+            var sellHq = entry.SellAsHq;
+            if (ImGui.Checkbox($"Sell HQ##hq_{entry.RecipeId}", ref sellHq))
+            {
+                entry.SellAsHq = sellHq;
+                config.Save();
+            }
+
+            ImGui.SameLine();
             ImGui.TextDisabled("|");
             ImGui.SameLine();
 
             // Price summary
             if (mbPrice > 0)
             {
-                ImGui.Text($"Sell: {afterTax:N0}");
+                var priceLabel = entry.SellAsHq ? "Sell (HQ): " : "Sell (NQ): ";
+                ImGui.Text($"{priceLabel}{afterTax:N0}");
                 ImGui.SameLine();
                 var profitColor = profit >= 0
                     ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)

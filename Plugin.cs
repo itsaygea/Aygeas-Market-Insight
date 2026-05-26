@@ -81,7 +81,7 @@ public sealed class Plugin : IDalamudPlugin
         // Commands
         commandManager.AddHandler("/ami", new CommandInfo(OnAmiCommand)
         {
-            HelpMessage = "Usage: /ami [list|config|detail] — opens Scanner, Shopping List, Settings, or Item Detail popout.",
+            HelpMessage = "Usage: /ami [scan|sl|list|config|detail] — Settings (default), Scanner, Shopping List, or Item Detail.",
         });
 
         log.Information("Aygea's Market Insight loaded");
@@ -147,7 +147,13 @@ public sealed class Plugin : IDalamudPlugin
         var trimmed = args.Trim().ToLowerInvariant();
         switch (trimmed)
         {
+            case "scan":
+            case "scanner":
+                pluginUI.ToggleScannerWindow();
+                break;
+            case "sl":
             case "list":
+            case "shopping":
                 pluginUI.ToggleShoppingListWindow();
                 break;
             case "config":
@@ -158,7 +164,7 @@ public sealed class Plugin : IDalamudPlugin
                 pluginUI.ToggleItemDetailPopout();
                 break;
             default:
-                pluginUI.ToggleScannerWindow();
+                pluginUI.ToggleConfigWindow();
                 break;
         }
     }
