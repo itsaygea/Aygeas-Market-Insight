@@ -42,6 +42,8 @@ public sealed class PluginUI : IDisposable
     public void ToggleShoppingListWindow() => shoppingListWindow.IsOpen = !shoppingListWindow.IsOpen;
     public void ToggleConfigWindow() => configWindow.IsOpen = !configWindow.IsOpen;
     public void ToggleItemDetailPopout() => itemDetailPopout.IsOpen = !itemDetailPopout.IsOpen;
+    public void OpenItemDetailPopout() => itemDetailPopout.IsOpen = true;
+    public void SetPinnedItem(PinnedItemData data) => itemDetailPopout.SetPinnedData(data);
 
     public void Dispose()
     {

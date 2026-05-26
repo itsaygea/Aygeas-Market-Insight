@@ -8,16 +8,14 @@ namespace AygeaMarketInsight.UI;
 
 public sealed class ItemDetailPopout : Window
 {
-    private readonly TooltipHook tooltipHook;
     private readonly RecipeCache recipeCache;
     private readonly Configuration config;
 
     private PinnedItemData? pinned;
 
-    public ItemDetailPopout(TooltipHook tooltipHook, RecipeCache recipeCache, Configuration config)
+    public ItemDetailPopout(RecipeCache recipeCache, Configuration config)
         : base("Aygea's Market Insight — Item Details###AMIItemDetail")
     {
-        this.tooltipHook = tooltipHook;
         this.recipeCache = recipeCache;
         this.config = config;
 
@@ -25,10 +23,10 @@ public sealed class ItemDetailPopout : Window
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 
+    public void SetPinnedData(PinnedItemData data) => pinned = data;
+
     public override void Draw()
     {
-        if (tooltipHook.CheckPinRequest() && tooltipHook.CurrentPinnedData != null)
-            pinned = tooltipHook.CurrentPinnedData;
 
         if (pinned == null)
         {

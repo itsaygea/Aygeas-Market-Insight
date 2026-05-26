@@ -64,7 +64,7 @@ public sealed class Plugin : IDalamudPlugin
 
         tooltipHook = new TooltipHook(
             gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
-        var itemDetailPopout = new ItemDetailPopout(tooltipHook, recipeCache, config);
+        var itemDetailPopout = new ItemDetailPopout(recipeCache, config);
 
         pluginUI = new PluginUI(pluginInterface, configWindow, scannerWindow, shoppingListWindow, itemDetailPopout);
 
@@ -90,6 +90,13 @@ public sealed class Plugin : IDalamudPlugin
     {
         pluginUI.Draw();
         tooltipHook.Draw();
+
+        // Ctrl+hover pins item details to the popout
+        if (tooltipHook.CheckPinRequest() && tooltipHook.CurrentPinnedData != null)
+        {
+            pluginUI.OpenItemDetailPopout();
+            pluginUI.SetPinnedItem(tooltipHook.CurrentPinnedData);
+        }
     }
 
     private void OnOpenConfig()
