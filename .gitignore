@@ -1,5 +1,8 @@
-# Safe to commit: source files, manifest, CLAUDE.md, README
+# Safe to commit: source files, manifest, README
 # Never commit: build output, IDE state, any secrets or API keys
+
+## Claude Code
+CLAUDE.md
 
 ## Build output
 bin/
