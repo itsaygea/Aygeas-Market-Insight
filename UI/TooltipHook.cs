@@ -115,6 +115,7 @@ public sealed class TooltipHook : IDisposable
         var world = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
         var ttl = config.UniversalisCacheTtlMinutes;
 
+#pragma warning disable CS4014
         _ = Task.Run(async () =>
         {
             try
@@ -138,6 +139,7 @@ public sealed class TooltipHook : IDisposable
                     ComputeTooltipData(itemId);
             });
         });
+#pragma warning restore CS4014
     }
 
     private void ComputeTooltipData(uint itemId)

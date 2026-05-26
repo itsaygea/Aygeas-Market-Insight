@@ -281,6 +281,7 @@ public sealed class ProfitScannerWindow : Window
             }
         }
 
+#pragma warning disable CS4014
         _ = Task.Run(async () =>
         {
             try
@@ -308,9 +309,8 @@ public sealed class ProfitScannerWindow : Window
                 framework.RunOnFrameworkThread(() => isLoading = false);
             }
         });
+#pragma warning restore CS4014
     }
-
-    private void BuildRows()
     {
         rows.Clear();
         foreach (var (recipeId, recipe) in recipeCache.GetAllRecipes())

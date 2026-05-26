@@ -29,7 +29,6 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PluginUI pluginUI;
 
     private readonly TooltipHook tooltipHook;
-    private ulong lastHoveredItemId;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
