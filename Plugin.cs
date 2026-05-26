@@ -18,7 +18,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IMarketBoard marketBoard;
     private readonly ICommandManager commandManager;
-    private readonly IClientState clientState;
+    private readonly IObjectTable objectTable;
     private readonly IPluginLog log;
 
     private readonly Configuration config;
@@ -37,14 +37,14 @@ public sealed class Plugin : IDalamudPlugin
         IGameGui gameGui,
         IMarketBoard marketBoard,
         IDataManager dataManager,
-        IClientState clientState,
+        IObjectTable objectTable,
         IFramework framework,
         IPluginLog log)
     {
         this.pluginInterface = pluginInterface;
         this.marketBoard = marketBoard;
         this.commandManager = commandManager;
-        this.clientState = clientState;
+        this.objectTable = objectTable;
         this.log = log;
 
         // Config
@@ -59,13 +59,13 @@ public sealed class Plugin : IDalamudPlugin
         // UI
         var configWindow = new ConfigWindow(config, artisanIpc, log);
         var scannerWindow = new ProfitScannerWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, clientState, framework, log);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, framework, log);
         var shoppingListWindow = new ShoppingListWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, clientState, framework, log);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, framework, log);
 
         pluginUI = new PluginUI(pluginInterface, configWindow, scannerWindow, shoppingListWindow);
         tooltipHook = new TooltipHook(
-            gameGui, recipeCache, priceCache, universalisClient, config, clientState, framework, log);
+            gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
 
         // Events
         pluginInterface.UiBuilder.Draw += OnDraw;
@@ -101,7 +101,7 @@ public sealed class Plugin : IDalamudPlugin
 
         foreach (var item in offerings.ItemListings)
         {
-            var itemId = item.CatalogId;
+            var itemId = item.ItemId;
             var isHq = item.IsHq;
 
             uint nq = 0, hq = 0;
@@ -122,7 +122,7 @@ public sealed class Plugin : IDalamudPlugin
         }
     }
 
-    private void OnPluginsChanged()
+    private void OnPluginsChanged(IActivePluginsChangedEventArgs args)
     {
         artisanIpc.Detect();
     }

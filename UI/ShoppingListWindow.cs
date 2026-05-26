@@ -17,7 +17,6 @@ public sealed class ShoppingListWindow : Window
     private readonly PriceCache priceCache;
     private readonly UniversalisClient universalisClient;
     private readonly ArtisanIpc artisanIpc;
-    private readonly IClientState clientState;
     private readonly IFramework framework;
     private readonly IPluginLog log;
 
@@ -34,7 +33,6 @@ public sealed class ShoppingListWindow : Window
         PriceCache priceCache,
         UniversalisClient universalisClient,
         ArtisanIpc artisanIpc,
-        IClientState clientState,
         IFramework framework,
         IPluginLog log)
         : base("Aygea's Market Insight — Shopping List###AMIShoppingList")
@@ -44,7 +42,6 @@ public sealed class ShoppingListWindow : Window
         this.priceCache = priceCache;
         this.universalisClient = universalisClient;
         this.artisanIpc = artisanIpc;
-        this.clientState = clientState;
         this.framework = framework;
         this.log = log;
 
@@ -208,20 +205,21 @@ public sealed class ShoppingListWindow : Window
             var cached = priceCache.Get(resultItemId);
             uint sellPrice = cached?.NqPrice ?? 0;
 
-            foreach (var ing in r.Ingredients())
+            for (int i = 0; i < 8; i++)
             {
-                if (ing.Amount <= 0 || ing.Item.RowId == 0)
+                var amount = (int)r.AmountIngredient[i];
+                var itemId = r.Ingredient[i].RowId;
+                if (amount <= 0 || itemId == 0)
                     continue;
 
-                var itemId = ing.Item.RowId;
-                var qty = ing.Amount * entry.Quantity;
+                var qty = amount * entry.Quantity;
 
                 if (!aggregated.TryGetValue(itemId, out var existing))
                 {
                     existing = new ShoppingIngredient
                     {
                         ItemId = itemId,
-                        ItemName = ing.Item.Value.Name.ToDalamudString().ToString(),
+                        ItemName = r.Ingredient[i].Value.Name.ToDalamudString().ToString(),
                         Quantity = 0,
                     };
                     aggregated[itemId] = existing;
@@ -277,38 +275,38 @@ public sealed class ShoppingListWindow : Window
             var cached = priceCache.Get(resultItemId);
             uint sellPrice = cached?.NqPrice ?? 0;
 
-            foreach (var ing in r.Ingredients())
+            var usesIngredient = false;
+            int qtyNeeded = 0;
+
+            for (int i = 0; i < 8; i++)
             {
-                if (ing.Amount <= 0 || ing.Item.RowId == 0)
+                var amount = (int)r.AmountIngredient[i];
+                var itemId = r.Ingredient[i].RowId;
+                if (amount <= 0 || itemId == 0)
                     continue;
 
-                if (ing.Item.RowId == ingredient.ItemId)
+                if (itemId == ingredient.ItemId)
+                {
+                    usesIngredient = true;
+                    qtyNeeded += amount * entry.Quantity;
                     continue;
+                }
 
-                var cost = recipeCache.GetVendorPrice(ing.Item.RowId);
-                var ingCached = priceCache.Get(ing.Item.RowId);
+                var cost = recipeCache.GetVendorPrice(itemId);
+                var ingCached = priceCache.Get(itemId);
                 if (ingCached != null && ingCached.NqPrice > 0)
                 {
                     if (cost == 0 || ingCached.NqPrice < cost)
                         cost = ingCached.NqPrice;
                 }
 
-                otherCosts += cost * (uint)ing.Amount * (uint)entry.Quantity;
+                otherCosts += cost * (uint)amount * (uint)entry.Quantity;
             }
-
-            // Only compute max price from recipes that actually use this ingredient
-            var usesIngredient = r.Ingredients()
-                .Any(i => i.Amount > 0 && i.Item.RowId == ingredient.ItemId);
 
             if (usesIngredient && sellPrice > 0)
             {
                 var totalOther = otherCosts;
                 var remaining = sellPrice > totalOther ? sellPrice - totalOther : 0;
-
-                // How many of this ingredient are needed across this recipe
-                var qtyNeeded = r.Ingredients()
-                    .Where(i => i.Item.RowId == ingredient.ItemId)
-                    .Sum(i => i.Amount * entry.Quantity);
 
                 if (qtyNeeded > 0)
                 {

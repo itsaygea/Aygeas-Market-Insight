@@ -44,17 +44,17 @@ public sealed class ConfigWindow : Window
         ImGui.Text("Tooltip Augmentation");
         ImGui.Separator();
 
-        Checkbox("Enable tooltip augmentation", ref config.EnableTooltipAugmentation);
-        Checkbox("Show \"Fetching...\" placeholder", ref config.ShowFetchingPlaceholder);
-        Checkbox("Show craft cost in tooltips", ref config.ShowCraftCostInTooltips);
-        Checkbox("Show MB price in tooltips", ref config.ShowMbPriceInTooltips);
-        Checkbox("Color profit/loss text", ref config.ColorProfitLossText);
+        Checkbox("Enable tooltip augmentation", config.EnableTooltipAugmentation, v => config.EnableTooltipAugmentation = v);
+        Checkbox("Show \"Fetching...\" placeholder", config.ShowFetchingPlaceholder, v => config.ShowFetchingPlaceholder = v);
+        Checkbox("Show craft cost in tooltips", config.ShowCraftCostInTooltips, v => config.ShowCraftCostInTooltips = v);
+        Checkbox("Show MB price in tooltips", config.ShowMbPriceInTooltips, v => config.ShowMbPriceInTooltips = v);
+        Checkbox("Color profit/loss text", config.ColorProfitLossText, v => config.ColorProfitLossText = v);
 
         if (config.ColorProfitLossText)
         {
             ImGui.Indent();
-            ColorPicker("Profit color", ref config.ProfitColor);
-            ColorPicker("Loss color", ref config.LossColor);
+            ColorPicker("Profit color", config.ProfitColor, v => config.ProfitColor = v);
+            ColorPicker("Loss color", config.LossColor, v => config.LossColor = v);
             ImGui.Unindent();
         }
 
@@ -62,8 +62,8 @@ public sealed class ConfigWindow : Window
         ImGui.Text("Price Cache");
         ImGui.Separator();
 
-        SliderInt("MB-sourced price TTL (minutes)", ref config.MbPriceCacheTtlMinutes, 5, 120);
-        SliderInt("Universalis-sourced TTL (minutes)", ref config.UniversalisCacheTtlMinutes, 5, 120);
+        SliderInt("MB-sourced price TTL (minutes)", config.MbPriceCacheTtlMinutes, v => config.MbPriceCacheTtlMinutes = v, 5, 120);
+        SliderInt("Universalis-sourced TTL (minutes)", config.UniversalisCacheTtlMinutes, v => config.UniversalisCacheTtlMinutes = v, 5, 120);
 
         ImGui.TextDisabled("Universalis batch size: 100 items (fixed)");
 
@@ -78,11 +78,11 @@ public sealed class ConfigWindow : Window
         ImGui.Text("Scanner Defaults");
         ImGui.Separator();
 
-        Checkbox("Remember window position/size", ref config.RememberScannerWindowPos);
-        SliderInt("Default min profit filter", ref config.DefaultMinProfitFilter, 0, 1_000_000);
-        SliderInt("Default min iLvl filter", ref config.DefaultMinIlvlFilter, 0, 700);
-        Checkbox("HQ only by default", ref config.HqOnlyByDefault);
-        Checkbox("Show job filter bar", ref config.ShowJobFilterBar);
+        Checkbox("Remember window position/size", config.RememberScannerWindowPos, v => config.RememberScannerWindowPos = v);
+        SliderInt("Default min profit filter", config.DefaultMinProfitFilter, v => config.DefaultMinProfitFilter = v, 0, 1_000_000);
+        SliderInt("Default min iLvl filter", config.DefaultMinIlvlFilter, v => config.DefaultMinIlvlFilter = v, 0, 700);
+        Checkbox("HQ only by default", config.HqOnlyByDefault, v => config.HqOnlyByDefault = v);
+        Checkbox("Show job filter bar", config.ShowJobFilterBar, v => config.ShowJobFilterBar = v);
 
         ImGui.EndTabItem();
     }
@@ -95,14 +95,14 @@ public sealed class ConfigWindow : Window
         ImGui.Text("Shopping List Settings");
         ImGui.Separator();
 
-        Checkbox("Remember pin state between sessions", ref config.RememberPinState);
+        Checkbox("Remember pin state between sessions", config.RememberPinState, v => config.RememberPinState = v);
 
         var opacity = config.PinnedWindowOpacity * 100f;
         if (ImGui.SliderFloat("Pinned window opacity", ref opacity, 20f, 100f, "%.0f%%"))
             config.PinnedWindowOpacity = Math.Clamp(opacity / 100f, 0.2f, 1f);
 
-        Checkbox("Resolve sub-recipes recursively", ref config.ResolveSubRecipesRecursively);
-        Checkbox("Highlight over-budget ingredients in red", ref config.HighlightOverBudgetIngredients);
+        Checkbox("Resolve sub-recipes recursively", config.ResolveSubRecipesRecursively, v => config.ResolveSubRecipesRecursively = v);
+        Checkbox("Highlight over-budget ingredients in red", config.HighlightOverBudgetIngredients, v => config.HighlightOverBudgetIngredients = v);
 
         ImGui.EndTabItem();
     }
@@ -155,24 +155,32 @@ public sealed class ConfigWindow : Window
         ImGui.EndTabItem();
     }
 
-    private void Checkbox(string label, ref bool value)
+    private void Checkbox(string label, bool current, Action<bool> set)
     {
-        if (ImGui.Checkbox(label, ref value))
-            config.Save();
-    }
-
-    private void SliderInt(string label, ref int value, int min, int max)
-    {
-        if (ImGui.SliderInt(label, ref value, min, max))
-            config.Save();
-    }
-
-    private void ColorPicker(string label, ref uint color)
-    {
-        var vec = ImGui.ColorConvertU32ToFloat4(color);
-        if (ImGui.ColorEdit4(label, ref vec, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.AlphaOpaque))
+        var val = current;
+        if (ImGui.Checkbox(label, ref val))
         {
-            color = ImGui.ColorConvertFloat4ToU32(vec);
+            set(val);
+            config.Save();
+        }
+    }
+
+    private void SliderInt(string label, int current, Action<int> set, int min, int max)
+    {
+        var val = current;
+        if (ImGui.SliderInt(label, ref val, min, max))
+        {
+            set(val);
+            config.Save();
+        }
+    }
+
+    private void ColorPicker(string label, uint current, Action<uint> set)
+    {
+        var vec = ImGui.ColorConvertU32ToFloat4(current);
+        if (ImGui.ColorEdit4(label, ref vec, ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.NoAlpha))
+        {
+            set(ImGui.ColorConvertFloat4ToU32(vec));
             config.Save();
         }
     }
@@ -184,7 +192,7 @@ public sealed class ConfigWindow : Window
         ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.ColorConvertU32ToFloat4(color));
 
         if (ImGui.Button(label))
-            Dalamud.Game.Utils.Util.OpenLink(url);
+            Dalamud.Utility.Util.OpenLink(url);
 
         ImGui.PopStyleColor(3);
     }

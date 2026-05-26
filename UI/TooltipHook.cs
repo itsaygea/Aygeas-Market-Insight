@@ -16,7 +16,7 @@ public sealed class TooltipHook : IDisposable
     private readonly PriceCache priceCache;
     private readonly UniversalisClient universalisClient;
     private readonly Configuration config;
-    private readonly IClientState clientState;
+    private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
 
@@ -37,7 +37,7 @@ public sealed class TooltipHook : IDisposable
         PriceCache priceCache,
         UniversalisClient universalisClient,
         Configuration config,
-        IClientState clientState,
+        IObjectTable objectTable,
         IFramework framework,
         IPluginLog log)
     {
@@ -46,14 +46,14 @@ public sealed class TooltipHook : IDisposable
         this.priceCache = priceCache;
         this.universalisClient = universalisClient;
         this.config = config;
-        this.clientState = clientState;
+        this.objectTable = objectTable;
         this.framework = framework;
         this.log = log;
 
         gameGui.HoveredItemChanged += OnHoveredItemChanged;
     }
 
-    private void OnHoveredItemChanged(ulong itemId)
+    private void OnHoveredItemChanged(object? sender, ulong itemId)
     {
         if (itemId == 0)
         {
@@ -88,10 +88,12 @@ public sealed class TooltipHook : IDisposable
 
         foreach (var recipe in recipes)
         {
-            foreach (var ing in recipe.Ingredients())
+            for (int i = 0; i < 8; i++)
             {
-                if (ing.Amount > 0 && ing.Item.RowId != 0)
-                    missingIds.Add(ing.Item.RowId);
+                var amount = (int)recipe.AmountIngredient[i];
+                var itemId = recipe.Ingredient[i].RowId;
+                if (amount > 0 && itemId != 0)
+                    missingIds.Add(itemId);
             }
         }
 
@@ -110,7 +112,7 @@ public sealed class TooltipHook : IDisposable
         foreach (var id in toFetch)
             priceCache.MarkPending(id);
 
-        var world = clientState.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
+        var world = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
         var ttl = config.UniversalisCacheTtlMinutes;
 
         _ = Task.Run(async () =>
@@ -178,22 +180,17 @@ public sealed class TooltipHook : IDisposable
             if (config.ShowFetchingPlaceholder)
             {
                 using var tooltip = ImRaii.Tooltip();
-                if (tooltip)
-                {
-                    ImGui.TextColored(new System.Numerics.Vector4(0.6f, 0.6f, 0.6f, 1f),
-                        "Aygea's Market Insight — Fetching prices...");
-                }
+                ImGui.TextColored(new System.Numerics.Vector4(0.6f, 0.6f, 0.6f, 1f),
+                    "Aygea's Market Insight — Fetching prices...");
             }
             return;
         }
 
-        using (var tooltip = ImRaii.Tooltip())
-        {
-            if (!tooltip) return;
+        using var tooltip = ImRaii.Tooltip();
 
-            ImGui.Separator();
-            ImGui.Text("Aygea's Market Insight");
-            ImGui.Separator();
+        ImGui.Separator();
+        ImGui.Text("Aygea's Market Insight");
+        ImGui.Separator();
 
             if (config.ShowCraftCostInTooltips)
                 ImGui.Text($"Craft cost:   {craftCost:N0} gil");
@@ -232,7 +229,6 @@ public sealed class TooltipHook : IDisposable
 
                 ImGui.TreePop();
             }
-        }
     }
 
     public void Dispose()

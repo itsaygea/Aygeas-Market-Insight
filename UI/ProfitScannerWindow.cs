@@ -16,7 +16,7 @@ public sealed class ProfitScannerWindow : Window
     private readonly PriceCache priceCache;
     private readonly UniversalisClient universalisClient;
     private readonly ArtisanIpc artisanIpc;
-    private readonly IClientState clientState;
+    private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
 
@@ -50,7 +50,7 @@ public sealed class ProfitScannerWindow : Window
         PriceCache priceCache,
         UniversalisClient universalisClient,
         ArtisanIpc artisanIpc,
-        IClientState clientState,
+        IObjectTable objectTable,
         IFramework framework,
         IPluginLog log)
         : base("Aygea's Market Insight — Profit Scanner###AMIScanner")
@@ -60,7 +60,7 @@ public sealed class ProfitScannerWindow : Window
         this.priceCache = priceCache;
         this.universalisClient = universalisClient;
         this.artisanIpc = artisanIpc;
-        this.clientState = clientState;
+        this.objectTable = objectTable;
         this.framework = framework;
         this.log = log;
 
@@ -84,7 +84,7 @@ public sealed class ProfitScannerWindow : Window
         DrawTable();
 
         // Status bar
-        var world = clientState.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "Unknown";
+        var world = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "Unknown";
         var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
         ImGui.TextDisabled($"Last refreshed: {ago}  |  {rows.Count} recipes  |  World: {world}");
     }
@@ -155,7 +155,7 @@ public sealed class ProfitScannerWindow : Window
         ImGui.TableHeadersRow();
 
         var sorts = ImGui.TableGetSortSpecs();
-        if (sorts.SpecsDirty && sorts.Specs.Count > 0)
+        if (sorts.SpecsDirty && sorts.SpecsCount > 0)
         {
             var spec = sorts.Specs[0];
             sortColumn = spec.ColumnIndex;
@@ -261,7 +261,7 @@ public sealed class ProfitScannerWindow : Window
     {
         if (isLoading) return;
 
-        worldName = clientState.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
+        worldName = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
         if (string.IsNullOrEmpty(worldName)) return;
 
         isLoading = true;
@@ -272,10 +272,12 @@ public sealed class ProfitScannerWindow : Window
         foreach (var recipe in recipeCache.GetAllRecipes().Values)
         {
             allItemIds.Add(recipe.ItemResult.RowId);
-            foreach (var ing in recipe.Ingredients())
+            for (int i = 0; i < 8; i++)
             {
-                if (ing.Amount > 0 && ing.Item.RowId != 0)
-                    allItemIds.Add(ing.Item.RowId);
+                var amount = (int)recipe.AmountIngredient[i];
+                var itemId = recipe.Ingredient[i].RowId;
+                if (amount > 0 && itemId != 0)
+                    allItemIds.Add(itemId);
             }
         }
 
@@ -311,7 +313,7 @@ public sealed class ProfitScannerWindow : Window
     private void BuildRows()
     {
         rows.Clear();
-        foreach (var (recipeId, recipe) in allRecipes)
+        foreach (var (recipeId, recipe) in recipeCache.GetAllRecipes())
         {
             var resultItemId = recipe.ItemResult.RowId;
 
@@ -329,7 +331,7 @@ public sealed class ProfitScannerWindow : Window
             var margin = displayPrice > 0 ? (float)profit / displayPrice : 0f;
 
             var itemName = recipe.ItemResult.Value.Name.ToDalamudString().ToString();
-            var itemLevel = recipe.ItemResult.Value.LevelItem;
+            var itemLevel = recipe.ItemResult.Value.LevelItem.RowId;
             var craftType = recipe.CraftType.Value;
             var jobName = craftType.RowId switch
             {

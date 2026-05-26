@@ -52,24 +52,25 @@ public sealed class RecipeCache
 
     private void LoadVendorPrices(IDataManager dataManager)
     {
-        var gilShopItems = dataManager.GetExcelSheet<GilShopItem>();
+        var gilShopItems = dataManager.GetSubrowSheet<GilShopItem>();
         if (gilShopItems == null)
         {
             log.Warning("Failed to load GilShopItem sheet");
             return;
         }
 
-        foreach (var entry in gilShopItems)
+        foreach (var row in gilShopItems)
         {
-            var item = entry.Item.Value;
-            if (item.RowId == 0)
-                continue;
-
-            var cost = entry.Price;
-            if (cost > 0)
+            foreach (var entry in row)
             {
-                if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)
-                    vendorPrices[item.RowId] = cost;
+                if (!entry.Item.IsValid) continue;
+                var item = entry.Item.Value;
+                var cost = (uint)item.PriceMid;
+                if (cost > 0)
+                {
+                    if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)
+                        vendorPrices[item.RowId] = cost;
+                }
             }
         }
     }
@@ -108,13 +109,14 @@ public sealed class RecipeCache
         breakdown = [];
         uint total = 0;
 
-        foreach (var ing in recipe.Ingredients())
+        for (int i = 0; i < 8; i++)
         {
-            if (ing.Amount <= 0 || ing.Item.RowId == 0)
+            var amount = (int)recipe.AmountIngredient[i];
+            var itemId = recipe.Ingredient[i].RowId;
+            if (amount <= 0 || itemId == 0)
                 continue;
 
-            var itemId = ing.Item.RowId;
-            var qty = ing.Amount;
+            var qty = amount;
 
             // Cheapest source: vendor price or MB price
             uint unitCost = GetVendorPrice(itemId);
