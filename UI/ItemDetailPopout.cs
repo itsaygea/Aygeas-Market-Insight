@@ -33,8 +33,8 @@ public sealed class ItemDetailPopout : Window
         // Anchor to bottom-right corner
         var viewport = ImGui.GetMainViewport();
         var pos = new System.Numerics.Vector2(
-            viewport.Pos.X + viewport.Size.X - Size.Value.X - 20,
-            viewport.Pos.Y + viewport.Size.Y - Size.Value.Y - 20);
+            viewport.Pos.X + viewport.Size.X - (Size?.X ?? 450) - 20,
+            viewport.Pos.Y + viewport.Size.Y - (Size?.Y ?? 400) - 20);
         ImGui.SetNextWindowPos(pos, ImGuiCond.FirstUseEver);
     }
 
