@@ -109,7 +109,7 @@ public sealed class RecipeCache
         var rlv = recipe.RecipeLevelTable.Value;
         int level = rlv.ClassJobLevel;
         var craftType = recipe.CraftType.Value.Name.ToString();
-        bool isExpert = recipe.RecipeLevelTable.Value.IsExpert;
+        bool isExpert = recipe.IsExpert;
 
         return (level, craftType, isExpert);
     }
