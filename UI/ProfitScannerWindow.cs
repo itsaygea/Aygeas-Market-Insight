@@ -22,7 +22,7 @@ public sealed class ProfitScannerWindow : Window
 
     private List<ScannerRow> rows = [];
 
-    public Action? OnAddToShoppingList { get; set; }
+    public System.Action? OnAddToShoppingList { get; set; }
     private bool isLoading;
     private DateTime lastRefreshTime;
     private string worldName = string.Empty;
