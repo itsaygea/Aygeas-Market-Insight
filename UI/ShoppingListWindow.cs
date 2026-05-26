@@ -165,9 +165,11 @@ public sealed class ShoppingListWindow : Window
                     var cachedIng = priceCache.Get(ing.ItemId);
                     var mbIng = cachedIng?.NqPrice ?? 0;
 
+                    bool isVendorItem = vendorPrice > 0 && (mbIng == 0 || vendorPrice <= mbIng);
                     uint bestPrice;
                     string source;
-                    if (vendorPrice > 0 && (mbIng == 0 || vendorPrice <= mbIng))
+
+                    if (isVendorItem)
                     {
                         bestPrice = vendorPrice;
                         source = "Vendor";
@@ -188,9 +190,10 @@ public sealed class ShoppingListWindow : Window
                         source = "?";
                     }
 
-                    // Max price: budget minus cost of all OTHER ingredients, divided by qty
+                    // Max price only applies to MB-sourced items
+                    // For vendor items, the price is fixed — no max needed
                     uint maxPrice = 0;
-                    if (budget > 0 && qty > 0)
+                    if (!isVendorItem && budget > 0 && qty > 0)
                     {
                         uint otherCosts = 0;
                         for (int j = 0; j < 8; j++)
@@ -234,7 +237,9 @@ public sealed class ShoppingListWindow : Window
                     ImGui.Text(bestPrice > 0 ? $"{bestPrice:N0}" : "—");
 
                     ImGui.TableSetColumnIndex(3);
-                    if (maxPrice > 0)
+                    if (isVendorItem)
+                        ImGui.TextDisabled("Vendor");
+                    else if (maxPrice > 0)
                     {
                         if (overBudget)
                             ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), $"{maxPrice:N0}");
