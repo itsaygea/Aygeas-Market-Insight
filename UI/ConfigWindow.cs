@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 
 namespace AygeaMarketInsight.UI;
 
