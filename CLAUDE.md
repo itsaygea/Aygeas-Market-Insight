@@ -113,6 +113,10 @@ Install as dev plugin: `/xlsettings → Experimental → Dev Plugin Locations` �
 - Ko-fi: https://ko-fi.com/aygea
 - GitHub: https://github.com/itsaygea/Aygeas-Market-Insight
 
+## Workflow
+
+**ALWAYS push to the remote repo after making any changes.** The dev environment is on a Windows machine that pulls from GitHub to build and test the plugin in-game. Without pushing, changes cannot be tested. Commit and push after every set of modifications.
+
 ## Things to know / gotchas
 
 - **Dalamud.NET.Sdk** handles TFM targeting — do not manually set `TargetFramework`
