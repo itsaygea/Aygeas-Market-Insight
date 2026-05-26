@@ -24,8 +24,10 @@ public sealed class ProfitScannerWindow : Window
 
     public System.Action? OnAddToShoppingList { get; set; }
     private bool isLoading;
+    private string loadingStatus = string.Empty;
     private DateTime lastRefreshTime;
     private string worldName = string.Empty;
+    private bool hasFetchedOnce;
 
     // Filters
     private int minProfit;
@@ -74,13 +76,19 @@ public sealed class ProfitScannerWindow : Window
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 
+    public override void OnOpen()
+    {
+        if (!hasFetchedOnce && !isLoading)
+            RefreshPrices();
+    }
+
     public override void Draw()
     {
         DrawControls();
 
         if (isLoading)
         {
-            ImGui.TextDisabled("Loading prices...");
+            ImGui.TextDisabled($"Loading prices... {loadingStatus}");
         }
 
         DrawTable();
@@ -267,21 +275,8 @@ public sealed class ProfitScannerWindow : Window
         if (string.IsNullOrEmpty(worldName)) return;
 
         isLoading = true;
-        priceCache.RemoveBySource("Universalis", TimeSpan.FromMinutes(5));
-
-        // Collect all item IDs we need prices for
-        var allItemIds = new HashSet<uint>();
-        foreach (var recipe in recipeCache.GetAllRecipes().Values)
-        {
-            allItemIds.Add(recipe.ItemResult.RowId);
-            for (int i = 0; i < 8; i++)
-            {
-                var amount = (int)recipe.AmountIngredient[i];
-                var itemId = recipe.Ingredient[i].RowId;
-                if (amount > 0 && itemId != 0)
-                    allItemIds.Add(itemId);
-            }
-        }
+        hasFetchedOnce = true;
+        loadingStatus = "collecting items...";
 
 #pragma warning disable CS4014
         _ = Task.Run(async () =>
@@ -289,11 +284,52 @@ public sealed class ProfitScannerWindow : Window
             try
             {
                 var ttl = config.UniversalisCacheTtlMinutes;
-                var results = await universalisClient.FetchPrices(worldName, allItemIds, ttl);
+
+                // Phase 1: Fetch result item prices only (~8K items)
+                var resultItemIds = new HashSet<uint>();
+                foreach (var recipe in recipeCache.GetAllRecipes().Values)
+                    resultItemIds.Add(recipe.ItemResult.RowId);
+
+                framework.RunOnFrameworkThread(() => loadingStatus = "phase 1/2: fetching sell prices...");
+
+                var resultPrices = await universalisClient.FetchPrices(worldName, resultItemIds, ttl,
+                    (done, total) => framework.RunOnFrameworkThread(() =>
+                        loadingStatus = $"phase 1/2: sell prices {done}/{total}"));
 
                 framework.RunOnFrameworkThread(() =>
                 {
-                    foreach (var kvp in results)
+                    foreach (var kvp in resultPrices)
+                    {
+                        var p = kvp.Value;
+                        priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
+                            TimeSpan.FromMinutes(ttl));
+                    }
+
+                    BuildRows();
+                    lastRefreshTime = DateTime.UtcNow;
+                    loadingStatus = "phase 2/2: fetching ingredient prices...";
+                });
+
+                // Phase 2: Fetch ingredient prices in background
+                var ingredientIds = new HashSet<uint>();
+                foreach (var recipe in recipeCache.GetAllRecipes().Values)
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        var amount = (int)recipe.AmountIngredient[i];
+                        var itemId = recipe.Ingredient[i].RowId;
+                        if (amount > 0 && itemId != 0 && !resultItemIds.Contains(itemId))
+                            ingredientIds.Add(itemId);
+                    }
+                }
+
+                var ingPrices = await universalisClient.FetchPrices(worldName, ingredientIds, ttl,
+                    (done, total) => framework.RunOnFrameworkThread(() =>
+                        loadingStatus = $"phase 2/2: ingredients {done}/{total}"));
+
+                framework.RunOnFrameworkThread(() =>
+                {
+                    foreach (var kvp in ingPrices)
                     {
                         var p = kvp.Value;
                         priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
@@ -303,12 +339,17 @@ public sealed class ProfitScannerWindow : Window
                     BuildRows();
                     lastRefreshTime = DateTime.UtcNow;
                     isLoading = false;
+                    loadingStatus = string.Empty;
                 });
             }
             catch (Exception ex)
             {
                 log.Warning(ex, "Scanner refresh failed");
-                framework.RunOnFrameworkThread(() => isLoading = false);
+                framework.RunOnFrameworkThread(() =>
+                {
+                    isLoading = false;
+                    loadingStatus = string.Empty;
+                });
             }
         });
 #pragma warning restore CS4014

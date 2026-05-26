@@ -32,12 +32,14 @@ public sealed class UniversalisClient : IDisposable
     public async Task<Dictionary<uint, UniversalisItemPrice>> FetchPrices(
         string worldOrDc,
         IEnumerable<uint> itemIds,
-        int ttlMinutes)
+        int ttlMinutes,
+        Action<int, int>? onProgress = null)
     {
         var results = new Dictionary<uint, UniversalisItemPrice>();
-        var batches = itemIds.Distinct().Chunk(100);
+        var batchList = itemIds.Distinct().Chunk(100).ToArray();
+        var totalBatches = batchList.Length;
 
-        foreach (var batch in batches)
+        for (int batchIdx = 0; batchIdx < totalBatches; batchIdx++)
         {
             try
             {
@@ -50,7 +52,7 @@ public sealed class UniversalisClient : IDisposable
 
             try
             {
-                var ids = string.Join(",", batch);
+                var ids = string.Join(",", batchList[batchIdx]);
                 var url = $"https://universalis.app/api/v2/{worldOrDc}/{ids}?listings=1&fields=items.minPrice,minPriceNQ,minPriceHQ";
 
                 var response = await http.GetAsync(url).ConfigureAwait(false);
@@ -101,6 +103,7 @@ public sealed class UniversalisClient : IDisposable
             finally
             {
                 concurrencyLimit.Release();
+                onProgress?.Invoke(batchIdx + 1, totalBatches);
             }
         }
 
