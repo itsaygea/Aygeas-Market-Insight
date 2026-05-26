@@ -109,10 +109,10 @@ public sealed class ShoppingListWindow : Window
         if (!ImGui.BeginTable("ShoppingTable", 5, flags))
             return;
 
-        ImGui.TableSetupColumn("Item Name");
+        ImGui.TableSetupColumn("Item Name", ImGuiTableColumnFlags.None, 250);
         ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.None, 50);
-        ImGui.TableSetupColumn("Current Price", ImGuiTableColumnFlags.None, 100);
-        ImGui.TableSetupColumn("Max Price", ImGuiTableColumnFlags.None, 100);
+        ImGui.TableSetupColumn("Current Price", ImGuiTableColumnFlags.None, 110);
+        ImGui.TableSetupColumn("Max Price", ImGuiTableColumnFlags.None, 110);
         ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.None, 70);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
