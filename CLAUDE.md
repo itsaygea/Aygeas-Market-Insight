@@ -111,7 +111,7 @@ Install as dev plugin: `/xlsettings → Experimental → Dev Plugin Locations` �
 - Twitch: https://twitch.tv/crazyaygea
 - Website: https://itsaygea.com
 - Ko-fi: https://ko-fi.com/aygea
-- GitHub: https://github.com/itsaygea/Aygea-Market-Insight
+- GitHub: https://github.com/itsaygea/Aygeas-Market-Insight
 
 ## Things to know / gotchas
 
@@ -123,3 +123,19 @@ Install as dev plugin: `/xlsettings → Experimental → Dev Plugin Locations` �
 - **HQ item IDs**: `HoveredItem` returns values > 1,000,000 for HQ. Use `rawId % 500000` for base ID
 - **ImGui tooltips** use `ImRaii.Tooltip()` — `TooltipActionDelegate` does not exist in current Dalamud
 - **`recipe.Ingredients()`** is the current access pattern; avoid deprecated `UnkData5` / `MaterialIngredient`
+
+## Release Process
+
+1. Make changes and push to `main`
+2. CI build workflow runs automatically to verify the build passes
+3. When ready to release, bump the version in `AygeaMarketInsight.csproj` (the `<Version>` property, e.g. `1.0.1`)
+4. Commit and push: `git commit -m "chore: bump version to 1.0.1"`
+5. Tag the commit: `git tag v1.0.1`
+6. Push the tag: `git push --tags`
+7. GitHub Actions release workflow fires automatically, builds in Release mode, and creates a GitHub Release with `latest.zip` attached
+8. Users with the custom repo added get the update automatically via Dalamud's plugin updater
+
+## Custom Repository
+
+The public `repo.json` is at: `itsaygea/DalamudPlugins`
+User-facing install URL: `https://raw.githubusercontent.com/itsaygea/DalamudPlugins/main/repo.json`

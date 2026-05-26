@@ -43,7 +43,7 @@ Requirements:
 - Dalamud (via XIVLauncher)
 
 ```
-git clone https://github.com/itsaygea/Aygea-Market-Insight.git
+git clone https://github.com/itsaygea/Aygeas-Market-Insight.git
 cd Aygea-Market-Insight
 dotnet build
 ```
@@ -59,4 +59,4 @@ dotnet build
 [![Twitch](https://img.shields.io/badge/Twitch-crazyaygea-9146FF?logo=twitch&logoColor=white)](https://twitch.tv/crazyaygea)
 [![Website](https://img.shields.io/badge/Website-itsaygea.com-00b4b4?logo=globe)](https://itsaygea.com)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/aygea)
-[![GitHub](https://img.shields.io/badge/GitHub-Report%20a%20Bug-333333?logo=github&logoColor=white)](https://github.com/itsaygea/Aygea-Market-Insight/issues)
+[![GitHub](https://img.shields.io/badge/GitHub-Report%20a%20Bug-333333?logo=github&logoColor=white)](https://github.com/itsaygea/Aygeas-Market-Insight/issues)

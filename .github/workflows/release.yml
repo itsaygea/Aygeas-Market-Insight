@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build
+        run: dotnet build --configuration Release
+
+      - name: Package
+        run: |
+          mkdir -p staging
+          cp bin/Release/net10.0-windows/AygeaMarketInsight.dll staging/
+          cp bin/Release/net10.0-windows/AygeaMarketInsight.json staging/
+          cp bin/Release/net10.0-windows/AygeaMarketInsight.pdb staging/
+          cd staging && 7z a ../latest.zip ./*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: latest.zip
+          generate_release_notes: true

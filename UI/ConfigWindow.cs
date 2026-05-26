@@ -144,7 +144,7 @@ public sealed class ConfigWindow : Window
 
         // GitHub button — dark neutral #333333
         DrawLinkButton("GitHub / Report a Bug",
-            "https://github.com/itsaygea/Aygea-Market-Insight",
+            "https://github.com/itsaygea/Aygeas-Market-Insight",
             0xFF333333);
 
         ImGui.Spacing();
