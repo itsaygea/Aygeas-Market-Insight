@@ -52,25 +52,20 @@ public sealed class RecipeCache
 
     private void LoadVendorPrices(IDataManager dataManager)
     {
-        var gilShopItems = dataManager.GetSubrowSheet<GilShopItem>();
-        if (gilShopItems == null)
+        var items = dataManager.GetExcelSheet<Item>();
+        if (items == null)
         {
-            log.Warning("Failed to load GilShopItem sheet");
+            log.Warning("Failed to load Item sheet for vendor prices");
             return;
         }
 
-        foreach (var row in gilShopItems)
+        foreach (var item in items)
         {
-            foreach (var entry in row)
+            var cost = (uint)item.PriceMid;
+            if (cost > 0)
             {
-                if (!entry.Item.IsValid) continue;
-                var item = entry.Item.Value;
-                var cost = (uint)item.PriceMid;
-                if (cost > 0)
-                {
-                    if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)
-                        vendorPrices[item.RowId] = cost;
-                }
+                if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)
+                    vendorPrices[item.RowId] = cost;
             }
         }
     }

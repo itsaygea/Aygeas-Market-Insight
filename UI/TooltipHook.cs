@@ -91,9 +91,9 @@ public sealed class TooltipHook : IDisposable
             for (int i = 0; i < 8; i++)
             {
                 var amount = (int)recipe.AmountIngredient[i];
-                var itemId = recipe.Ingredient[i].RowId;
-                if (amount > 0 && itemId != 0)
-                    missingIds.Add(itemId);
+                var ingItemId = recipe.Ingredient[i].RowId;
+                if (amount > 0 && ingItemId != 0)
+                    missingIds.Add(ingItemId);
             }
         }
 
@@ -179,7 +179,7 @@ public sealed class TooltipHook : IDisposable
         {
             if (config.ShowFetchingPlaceholder)
             {
-                using var tooltip = ImRaii.Tooltip();
+                using var fetchingTooltip = ImRaii.Tooltip();
                 ImGui.TextColored(new System.Numerics.Vector4(0.6f, 0.6f, 0.6f, 1f),
                     "Aygea's Market Insight — Fetching prices...");
             }

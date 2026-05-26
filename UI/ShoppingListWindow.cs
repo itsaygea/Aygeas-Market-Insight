@@ -219,7 +219,7 @@ public sealed class ShoppingListWindow : Window
                     existing = new ShoppingIngredient
                     {
                         ItemId = itemId,
-                        ItemName = r.Ingredient[i].Value.Name.ToDalamudString().ToString(),
+                        ItemName = r.Ingredient[i].Value.Name.ToString(),
                         Quantity = 0,
                     };
                     aggregated[itemId] = existing;

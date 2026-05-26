@@ -330,7 +330,7 @@ public sealed class ProfitScannerWindow : Window
             var profit = (int)(displayPrice - craftCost);
             var margin = displayPrice > 0 ? (float)profit / displayPrice : 0f;
 
-            var itemName = recipe.ItemResult.Value.Name.ToDalamudString().ToString();
+            var itemName = recipe.ItemResult.Value.Name.ToString();
             var itemLevel = recipe.ItemResult.Value.LevelItem.RowId;
             var craftType = recipe.CraftType.Value;
             var jobName = craftType.RowId switch
