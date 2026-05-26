@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Dalamud.Interface.Windowing;
-using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 
 namespace AygeaMarketInsight.UI;
@@ -9,32 +8,59 @@ namespace AygeaMarketInsight.UI;
 public sealed class ItemDetailPopout : Window
 {
     private readonly RecipeCache recipeCache;
+    private readonly PriceCache priceCache;
     private readonly Configuration config;
 
     private PinnedItemData? pinned;
 
-    public Action? OnAddToShoppingList { get; set; }
+    public System.Action? OnAddToShoppingList { get; set; }
 
-    public ItemDetailPopout(RecipeCache recipeCache, Configuration config)
+    public ItemDetailPopout(RecipeCache recipeCache, PriceCache priceCache, Configuration config)
         : base("Aygea's Market Insight — Item Details###AMIItemDetail")
     {
         this.recipeCache = recipeCache;
+        this.priceCache = priceCache;
         this.config = config;
 
         Size = new System.Numerics.Vector2(450, 400);
         SizeCondition = ImGuiCond.FirstUseEver;
+
+        Flags = ImGuiWindowFlags.NoCollapse;
+    }
+
+    public override void OnOpen()
+    {
+        // Anchor to bottom-right corner
+        var viewport = ImGui.GetMainViewport();
+        var pos = new System.Numerics.Vector2(
+            viewport.Pos.X + viewport.Size.X - Size.Value.X - 20,
+            viewport.Pos.Y + viewport.Size.Y - Size.Value.Y - 20);
+        ImGui.SetNextWindowPos(pos, ImGuiCond.FirstUseEver);
     }
 
     public void SetPinnedData(PinnedItemData data) => pinned = data;
 
     public override void Draw()
     {
-
         if (pinned == null)
         {
             ImGui.TextDisabled("Hover a craftable item and hold Ctrl to pin details here.");
             return;
         }
+
+        // Look up live prices from cache
+        var cached = priceCache.Get(pinned.ItemId);
+        uint mbPrice = pinned.IsHq ? cached?.HqPrice ?? 0 : cached?.NqPrice ?? 0;
+        uint mbAfterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
+
+        // Recalculate craft cost with live prices
+        var recipe = recipeCache.GetRecipe(pinned.RecipeId);
+        uint craftCost = 0;
+        List<RecipeCache.IngredientCost> breakdown = [];
+        if (recipe != null)
+            craftCost = recipeCache.CalculateCraftCost(recipe.Value, priceCache, out breakdown);
+
+        int profit = (int)(mbAfterTax - craftCost);
 
         // Item name + craft level
         ImGui.Text(pinned.ItemName);
@@ -57,13 +83,13 @@ public sealed class ItemDetailPopout : Window
             ImGui.TableSetColumnIndex(0);
             ImGui.Text("Craft cost:");
             ImGui.TableSetColumnIndex(1);
-            ImGui.Text(pinned.CraftCost > 0 ? $"{pinned.CraftCost:N0} gil" : "N/A — fetch prices first");
+            ImGui.Text(craftCost > 0 ? $"{craftCost:N0} gil" : "—");
 
             ImGui.TableNextRow();
             ImGui.TableSetColumnIndex(0);
             ImGui.Text("MB sell price:");
             ImGui.TableSetColumnIndex(1);
-            ImGui.Text(pinned.MbPriceRaw > 0 ? $"{pinned.MbPriceRaw:N0} gil" : "N/A — browse MB or refresh scanner");
+            ImGui.Text(mbPrice > 0 ? $"{mbPrice:N0} gil" : "—");
 
             if (tax > 0)
             {
@@ -71,24 +97,24 @@ public sealed class ItemDetailPopout : Window
                 ImGui.TableSetColumnIndex(0);
                 ImGui.TextDisabled($"After tax ({tax:F0}%):");
                 ImGui.TableSetColumnIndex(1);
-                ImGui.TextDisabled(pinned.MbPriceAfterTax > 0 ? $"{pinned.MbPriceAfterTax:N0} gil" : "N/A");
+                ImGui.TextDisabled(mbAfterTax > 0 ? $"{mbAfterTax:N0} gil" : "—");
             }
 
             ImGui.TableNextRow();
             ImGui.TableSetColumnIndex(0);
             ImGui.Text("Profit:");
             ImGui.TableSetColumnIndex(1);
-            if (pinned.MbPriceRaw > 0 && pinned.CraftCost > 0)
+            if (mbPrice > 0 && craftCost > 0)
             {
-                var profitColor = pinned.Profit >= 0
+                var profitColor = profit >= 0
                     ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
                     : ImGui.ColorConvertU32ToFloat4(config.LossColor);
-                var profitText = pinned.Profit >= 0 ? $"+{pinned.Profit:N0} gil" : $"{pinned.Profit:N0} gil";
+                var profitText = profit >= 0 ? $"+{profit:N0} gil" : $"{profit:N0} gil";
                 ImGui.TextColored(profitColor, profitText);
             }
             else
             {
-                ImGui.TextDisabled("N/A");
+                ImGui.TextDisabled("—");
             }
 
             ImGui.EndTable();
@@ -96,8 +122,8 @@ public sealed class ItemDetailPopout : Window
 
         ImGui.Spacing();
 
-        // Ingredient breakdown
-        if (pinned.Breakdown.Count > 0)
+        // Ingredient breakdown — use live prices
+        if (breakdown.Count > 0)
         {
             ImGui.Text("Materials");
             var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV |
@@ -114,7 +140,7 @@ public sealed class ItemDetailPopout : Window
                 ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableHeadersRow();
 
-                foreach (var ing in pinned.Breakdown)
+                foreach (var ing in breakdown)
                 {
                     ImGui.TableNextRow();
 
@@ -127,9 +153,9 @@ public sealed class ItemDetailPopout : Window
                     ImGui.TableSetColumnIndex(1);
                     ImGui.Text($"{ing.Quantity}");
                     ImGui.TableSetColumnIndex(2);
-                    ImGui.Text($"{ing.CostPerUnit:N0}");
+                    ImGui.Text(ing.CostPerUnit > 0 ? $"{ing.CostPerUnit:N0}" : "—");
                     ImGui.TableSetColumnIndex(3);
-                    ImGui.Text($"{total:N0}");
+                    ImGui.Text(total > 0 ? $"{total:N0}" : "—");
                     ImGui.TableSetColumnIndex(4);
                     ImGui.Text(source);
                 }
