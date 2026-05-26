@@ -38,7 +38,8 @@ public sealed class Plugin : IDalamudPlugin
         IDataManager dataManager,
         IObjectTable objectTable,
         IFramework framework,
-        IPluginLog log)
+        IPluginLog log,
+        Dalamud.Plugin.Services.INotificationManager notificationManager)
     {
         this.pluginInterface = pluginInterface;
         this.marketBoard = marketBoard;
@@ -60,7 +61,7 @@ public sealed class Plugin : IDalamudPlugin
         var scannerWindow = new ProfitScannerWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, framework, log);
         var shoppingListWindow = new ShoppingListWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, framework, log);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, notificationManager, framework, log);
 
         tooltipHook = new TooltipHook(
             gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);

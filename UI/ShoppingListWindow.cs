@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
@@ -14,6 +15,7 @@ public sealed class ShoppingListWindow : Window
     private readonly RecipeCache recipeCache;
     private readonly PriceCache priceCache;
     private readonly ArtisanIpc artisanIpc;
+    private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
 
     private bool showConfirmClear;
@@ -24,6 +26,7 @@ public sealed class ShoppingListWindow : Window
         PriceCache priceCache,
         UniversalisClient universalisClient,
         ArtisanIpc artisanIpc,
+        INotificationManager notificationManager,
         IFramework framework,
         IPluginLog log)
         : base("Aygea's Market Insight — Shopping List###AMIShoppingList")
@@ -32,6 +35,7 @@ public sealed class ShoppingListWindow : Window
         this.recipeCache = recipeCache;
         this.priceCache = priceCache;
         this.artisanIpc = artisanIpc;
+        this.notificationManager = notificationManager;
         this.log = log;
 
         Size = new System.Numerics.Vector2(600, 550);
@@ -231,7 +235,15 @@ public sealed class ShoppingListWindow : Window
                     else
                         ImGui.Text(matName);
                     if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                    {
                         ImGui.SetClipboardText(matName);
+                        notificationManager.AddNotification(new Notification
+                        {
+                            Content = matName,
+                            Title = "Copied to clipboard",
+                            Type = NotificationType.Success,
+                        });
+                    }
                     if (ImGui.IsItemHovered())
                         ImGui.SetTooltip("Double-click to copy name");
 
