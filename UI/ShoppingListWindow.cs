@@ -225,10 +225,15 @@ public sealed class ShoppingListWindow : Window
 
                     ImGui.TableSetColumnIndex(0);
                     var overBudget = maxPrice > 0 && bestPrice > maxPrice;
+                    var matName = recipeCache.GetItemName(ing.ItemId);
                     if (overBudget && config.HighlightOverBudgetIngredients)
-                        ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), recipeCache.GetItemName(ing.ItemId));
+                        ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName);
                     else
-                        ImGui.Text(recipeCache.GetItemName(ing.ItemId));
+                        ImGui.Text(matName);
+                    if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                        ImGui.SetClipboardText(matName);
+                    if (ImGui.IsItemHovered())
+                        ImGui.SetTooltip("Double-click to copy name");
 
                     ImGui.TableSetColumnIndex(1);
                     ImGui.Text($"{qty}");
