@@ -62,9 +62,11 @@ public sealed class Plugin : IDalamudPlugin
         var shoppingListWindow = new ShoppingListWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, framework, log);
 
-        pluginUI = new PluginUI(pluginInterface, configWindow, scannerWindow, shoppingListWindow);
         tooltipHook = new TooltipHook(
             gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
+        var itemDetailPopout = new ItemDetailPopout(tooltipHook, recipeCache, config);
+
+        pluginUI = new PluginUI(pluginInterface, configWindow, scannerWindow, shoppingListWindow, itemDetailPopout);
 
         // Events
         pluginInterface.UiBuilder.Draw += OnDraw;
@@ -78,7 +80,7 @@ public sealed class Plugin : IDalamudPlugin
         // Commands
         commandManager.AddHandler("/ami", new CommandInfo(OnAmiCommand)
         {
-            HelpMessage = "Open/close the Profit Scanner. Use /ami list for Shopping List, /ami config for Settings.",
+            HelpMessage = "Usage: /ami [list|config|detail] — opens Scanner, Shopping List, Settings, or Item Detail popout.",
         });
 
         log.Information("Aygea's Market Insight loaded");
@@ -143,6 +145,9 @@ public sealed class Plugin : IDalamudPlugin
             case "config":
             case "settings":
                 pluginUI.ToggleConfigWindow();
+                break;
+            case "detail":
+                pluginUI.ToggleItemDetailPopout();
                 break;
             default:
                 pluginUI.ToggleScannerWindow();

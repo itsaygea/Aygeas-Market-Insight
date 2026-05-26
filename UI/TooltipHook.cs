@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
-using Lumina.Excel.Sheets;
 
 namespace AygeaMarketInsight.UI;
 
@@ -25,11 +24,17 @@ public sealed class TooltipHook : IDisposable
     private bool dataReady;
 
     private uint craftCost;
-    private uint mbPrice;
+    private uint mbPriceRaw;
+    private uint mbPriceAfterTax;
     private int profit;
     private string itemName = string.Empty;
     private bool isHq;
+    private uint pinnedRecipeId;
     private List<RecipeCache.IngredientCost> breakdown = [];
+
+    // Exposed for ItemDetailPopout
+    public bool HasPinnedItem => pinnedRecipeId != 0;
+    public PinnedItemData? CurrentPinnedData { get; private set; }
 
     public TooltipHook(
         IGameGui gameGui,
@@ -62,7 +67,6 @@ public sealed class TooltipHook : IDisposable
             return;
         }
 
-        // HQ items: value > 1,000,000 means HQ, subtract to get base
         isHq = itemId > 1_000_000;
         hoveredItemId = (uint)(itemId % 500_000);
 
@@ -74,8 +78,6 @@ public sealed class TooltipHook : IDisposable
 
         needsDraw = true;
         dataReady = false;
-
-        // Kick off async price fetch for this item + its ingredients
         FetchPricesForItem(hoveredItemId);
     }
 
@@ -97,14 +99,12 @@ public sealed class TooltipHook : IDisposable
             }
         }
 
-        // Filter to only items not cached and not already pending
         var toFetch = missingIds
             .Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id))
             .ToList();
 
         if (toFetch.Count == 0)
         {
-            // All data available — compute immediately
             ComputeTooltipData(itemId);
             return;
         }
@@ -147,9 +147,9 @@ public sealed class TooltipHook : IDisposable
         var recipes = recipeCache.GetRecipesForItem(itemId);
         if (recipes.Count == 0) return;
 
-        // Find cheapest recipe to craft
         uint cheapestCost = uint.MaxValue;
         List<RecipeCache.IngredientCost> bestBreakdown = [];
+        uint bestRecipeId = 0;
 
         foreach (var recipe in recipes)
         {
@@ -158,18 +158,36 @@ public sealed class TooltipHook : IDisposable
             {
                 cheapestCost = cost;
                 bestBreakdown = bd;
+                bestRecipeId = recipe.RowId;
             }
         }
 
         craftCost = cheapestCost == uint.MaxValue ? 0 : cheapestCost;
         breakdown = bestBreakdown;
+        pinnedRecipeId = bestRecipeId;
 
-        // Get MB price for the result item
         var cached = priceCache.Get(itemId);
-        mbPrice = isHq ? cached?.HqPrice ?? 0 : cached?.NqPrice ?? 0;
+        mbPriceRaw = isHq ? cached?.HqPrice ?? 0 : cached?.NqPrice ?? 0;
+        mbPriceAfterTax = (uint)(mbPriceRaw * (1f - config.SalesTaxPercent / 100f));
 
-        profit = (int)(mbPrice - craftCost);
+        profit = (int)(mbPriceAfterTax - craftCost);
         dataReady = true;
+
+        itemName = recipeCache.GetRecipesForItem(itemId).FirstOrDefault().ItemResult.Value.Name.ToString();
+
+        // Update pinned data for popout
+        CurrentPinnedData = new PinnedItemData
+        {
+            ItemId = itemId,
+            ItemName = itemName,
+            RecipeId = bestRecipeId,
+            CraftCost = craftCost,
+            MbPriceRaw = mbPriceRaw,
+            MbPriceAfterTax = mbPriceAfterTax,
+            Profit = profit,
+            IsHq = isHq,
+            Breakdown = new List<RecipeCache.IngredientCost>(breakdown),
+        };
     }
 
     public void Draw()
@@ -194,47 +212,60 @@ public sealed class TooltipHook : IDisposable
         ImGui.Text("Aygea's Market Insight");
         ImGui.Separator();
 
-            if (config.ShowCraftCostInTooltips)
-                ImGui.Text($"Craft cost:   {craftCost:N0} gil");
+        if (config.ShowCraftCostInTooltips)
+            ImGui.Text($"Craft cost:   {craftCost:N0} gil");
 
-            if (config.ShowMbPriceInTooltips)
-                ImGui.Text($"MB price:     {mbPrice:N0} gil");
+        if (config.ShowMbPriceInTooltips)
+        {
+            ImGui.Text($"MB price:     {mbPriceRaw:N0} gil");
+            if (config.SalesTaxPercent > 0)
+                ImGui.TextDisabled($"  After tax:  {mbPriceAfterTax:N0} gil ({config.SalesTaxPercent:F0}%)");
+        }
 
-            if (config.ShowCraftCostInTooltips && config.ShowMbPriceInTooltips)
+        if (config.ShowCraftCostInTooltips && config.ShowMbPriceInTooltips)
+        {
+            var profitText = profit >= 0
+                ? $"Profit: {profit:N0} gil"
+                : $"Loss: {Math.Abs(profit):N0} gil";
+
+            if (config.ColorProfitLossText)
             {
-                var profitText = profit >= 0
-                    ? $"Craft saves {profit:N0} gil"
-                    : $"Craft costs {Math.Abs(profit):N0} gil more";
-
-                if (config.ColorProfitLossText)
-                {
-                    var color = profit >= 0
-                        ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
-                        : ImGui.ColorConvertU32ToFloat4(config.LossColor);
-                    ImGui.TextColored(color, $">> {profitText}");
-                }
-                else
-                {
-                    ImGui.Text($">> {profitText}");
-                }
+                var color = profit >= 0
+                    ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
+                    : ImGui.ColorConvertU32ToFloat4(config.LossColor);
+                ImGui.TextColored(color, profitText);
             }
-
-            // Ingredient breakdown (collapsible)
-            if (breakdown.Count > 0 && ImGui.TreeNode("Ingredient Breakdown"))
+            else
             {
-                foreach (var ing in breakdown)
-                {
-                    var vendorPrice = recipeCache.GetVendorPrice(ing.ItemId);
-                    var source = vendorPrice > 0 && vendorPrice <= ing.CostPerUnit ? "Vendor" : "MB";
-                    ImGui.Text($"  {ing.Quantity}x — {ing.CostPerUnit:N0} gil each ({source})");
-                }
-
-                ImGui.TreePop();
+                ImGui.Text(profitText);
             }
+        }
+
+        ImGui.TextDisabled("Hold Ctrl to pin details");
+    }
+
+    public bool CheckPinRequest()
+    {
+        if (!dataReady || hoveredItemId == 0) return false;
+        if (!ImGui.GetIO().KeyCtrl) return false;
+        return true;
     }
 
     public void Dispose()
     {
         gameGui.HoveredItemChanged -= OnHoveredItemChanged;
     }
+}
+
+public sealed class PinnedItemData
+{
+    public uint ItemId;
+    public string ItemName = string.Empty;
+    public uint RecipeId;
+    public uint CraftCost;
+    public uint MbPriceRaw;
+    public uint MbPriceAfterTax;
+    public int Profit;
+    public bool IsHq;
+    public List<RecipeCache.IngredientCost> Breakdown = [];
 }

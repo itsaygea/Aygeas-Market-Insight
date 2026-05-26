@@ -201,9 +201,9 @@ public sealed class ShoppingListWindow : Window
             var r = recipe.Value;
             var resultItemId = r.ItemResult.RowId;
 
-            // Get sell price for the result item
+            // Get sell price for the result item (after tax)
             var cached = priceCache.Get(resultItemId);
-            uint sellPrice = cached?.NqPrice ?? 0;
+            uint sellPrice = (uint)((cached?.NqPrice ?? 0) * (1f - config.SalesTaxPercent / 100f));
 
             for (int i = 0; i < 8; i++)
             {
@@ -273,7 +273,7 @@ public sealed class ShoppingListWindow : Window
             var r = recipe.Value;
             var resultItemId = r.ItemResult.RowId;
             var cached = priceCache.Get(resultItemId);
-            uint sellPrice = cached?.NqPrice ?? 0;
+            uint sellPrice = (uint)((cached?.NqPrice ?? 0) * (1f - config.SalesTaxPercent / 100f));
 
             var usesIngredient = false;
             int qtyNeeded = 0;

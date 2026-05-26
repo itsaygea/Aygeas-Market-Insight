@@ -17,6 +17,7 @@ public class Configuration : IPluginConfiguration
     public bool ShowCraftCostInTooltips { get; set; } = true;
     public bool ShowMbPriceInTooltips { get; set; } = true;
     public bool ColorProfitLossText { get; set; } = true;
+    public float SalesTaxPercent { get; set; } = 5f;
 
     public uint ProfitColor { get; set; } = 0xFF00C800; // ABGR green
     public uint LossColor { get; set; } = 0xFF0000C8;   // ABGR red

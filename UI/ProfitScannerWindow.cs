@@ -148,7 +148,7 @@ public sealed class ProfitScannerWindow : Window
         ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.DefaultSort, 50);
         ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.DefaultSort, 50);
         ImGui.TableSetupColumn("Craft Cost", ImGuiTableColumnFlags.DefaultSort, 90);
-        ImGui.TableSetupColumn("MB Sell Price", ImGuiTableColumnFlags.DefaultSort, 100);
+        ImGui.TableSetupColumn("MB Price (after tax)", ImGuiTableColumnFlags.DefaultSort, 110);
         ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.DefaultSort, 90);
         ImGui.TableSetupColumn("Margin %", ImGuiTableColumnFlags.DefaultSort, 70);
         ImGui.TableSetupScrollFreeze(0, 1);
@@ -327,8 +327,9 @@ public sealed class ProfitScannerWindow : Window
 
             if (displayPrice == 0) continue;
 
-            var profit = (int)(displayPrice - craftCost);
-            var margin = displayPrice > 0 ? (float)profit / displayPrice : 0f;
+            var afterTax = (uint)(displayPrice * (1f - config.SalesTaxPercent / 100f));
+            var profit = (int)(afterTax - craftCost);
+            var margin = afterTax > 0 ? (float)profit / afterTax : 0f;
 
             var itemName = recipe.ItemResult.Value.Name.ToString();
             var itemLevel = recipe.ItemResult.Value.LevelItem.RowId;

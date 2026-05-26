@@ -59,6 +59,18 @@ public sealed class ConfigWindow : Window
         }
 
         ImGui.Spacing();
+        ImGui.Text("Profit Calculation");
+        ImGui.Separator();
+
+        var tax = config.SalesTaxPercent;
+        if (ImGui.SliderFloat("Sales tax %", ref tax, 0f, 10f, "%.0f%%"))
+        {
+            config.SalesTaxPercent = Math.Clamp(tax, 0f, 10f);
+            config.Save();
+        }
+        ImGui.TextDisabled("Applied to MB sell price when calculating profit.");
+
+        ImGui.Spacing();
         ImGui.Text("Price Cache");
         ImGui.Separator();
 

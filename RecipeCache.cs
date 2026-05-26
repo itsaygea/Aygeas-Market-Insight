@@ -19,6 +19,9 @@ public sealed class RecipeCache
     // itemId → vendor gil cost (0 if not sold by vendor)
     private readonly Dictionary<uint, uint> vendorPrices = [];
 
+    // itemId → item name
+    private readonly Dictionary<uint, string> itemNames = [];
+
     public RecipeCache(IDataManager dataManager, IPluginLog log)
     {
         this.log = log;
@@ -61,6 +64,8 @@ public sealed class RecipeCache
 
         foreach (var item in items)
         {
+            itemNames[item.RowId] = item.Name.ToString();
+
             var cost = (uint)item.PriceMid;
             if (cost > 0)
             {
@@ -90,6 +95,24 @@ public sealed class RecipeCache
     }
 
     public bool IsVendorItem(uint itemId) => vendorPrices.ContainsKey(itemId);
+
+    public string GetItemName(uint itemId)
+    {
+        return itemNames.TryGetValue(itemId, out var name) ? name : $"Item #{itemId}";
+    }
+
+    public (int Level, string CraftType, bool IsExpert) GetRecipeDifficulty(uint recipeId)
+    {
+        if (!recipeIdToRecipe.TryGetValue(recipeId, out var recipe))
+            return (0, "???", false);
+
+        var rlv = recipe.RecipeLevelTable.Value;
+        int level = rlv.ClassJobLevel;
+        var craftType = recipe.CraftType.Value.Name.ToString();
+        bool isExpert = recipe.RecipeLevelTable.Value.IsExpert;
+
+        return (level, craftType, isExpert);
+    }
 
     public struct IngredientCost(uint itemId, int quantity, uint costPerUnit, uint totalCost)
     {
