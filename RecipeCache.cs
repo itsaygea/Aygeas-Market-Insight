@@ -101,6 +101,12 @@ public sealed class RecipeCache
         return itemNames.TryGetValue(itemId, out var name) ? name : $"Item #{itemId}";
     }
 
+    private static readonly string[] CraftJobNames =
+    [
+        "Carpenter", "Blacksmith", "Armorer", "Goldsmith",
+        "Leatherworker", "Weaver", "Alchemist", "Culinarian",
+    ];
+
     public (int Level, string CraftType, bool IsExpert) GetRecipeDifficulty(uint recipeId)
     {
         if (!recipeIdToRecipe.TryGetValue(recipeId, out var recipe))
@@ -108,7 +114,8 @@ public sealed class RecipeCache
 
         var rlv = recipe.RecipeLevelTable.Value;
         int level = rlv.ClassJobLevel;
-        var craftType = recipe.CraftType.Value.Name.ToString();
+        var idx = (int)recipe.CraftType.Value.RowId;
+        var craftType = idx >= 0 && idx < CraftJobNames.Length ? CraftJobNames[idx] : "???";
         bool isExpert = recipe.IsExpert;
 
         return (level, craftType, isExpert);

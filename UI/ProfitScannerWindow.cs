@@ -21,6 +21,8 @@ public sealed class ProfitScannerWindow : Window
     private readonly IPluginLog log;
 
     private List<ScannerRow> rows = [];
+
+    public Action? OnAddToShoppingList { get; set; }
     private bool isLoading;
     private DateTime lastRefreshTime;
     private string worldName = string.Empty;
@@ -335,8 +337,7 @@ public sealed class ProfitScannerWindow : Window
 
             var itemName = recipe.ItemResult.Value.Name.ToString();
             var itemLevel = recipe.ItemResult.Value.LevelItem.RowId;
-            var craftType = recipe.CraftType.Value;
-            var jobName = craftType.RowId switch
+            var jobName = recipe.CraftType.Value.RowId switch
             {
                 0 => "CRP", 1 => "BSM", 2 => "ARM", 3 => "GSM",
                 4 => "LTW", 5 => "WVR", 6 => "ALC", 7 => "CUL",
@@ -373,6 +374,7 @@ public sealed class ProfitScannerWindow : Window
             ResultItemId = row.ResultItemId,
         });
         config.Save();
+        OnAddToShoppingList?.Invoke();
     }
 }
 

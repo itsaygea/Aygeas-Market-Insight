@@ -30,6 +30,9 @@ public sealed class PluginUI : IDisposable
         windowSystem.AddWindow(shoppingListWindow);
         windowSystem.AddWindow(itemDetailPopout);
 
+        itemDetailPopout.OnAddToShoppingList = () => shoppingListWindow.IsOpen = true;
+        scannerWindow.OnAddToShoppingList = () => shoppingListWindow.IsOpen = true;
+
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
     }
 

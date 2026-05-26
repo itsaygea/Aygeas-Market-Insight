@@ -13,6 +13,8 @@ public sealed class ItemDetailPopout : Window
 
     private PinnedItemData? pinned;
 
+    public Action? OnAddToShoppingList { get; set; }
+
     public ItemDetailPopout(RecipeCache recipeCache, Configuration config)
         : base("Aygea's Market Insight — Item Details###AMIItemDetail")
     {
@@ -55,13 +57,13 @@ public sealed class ItemDetailPopout : Window
             ImGui.TableSetColumnIndex(0);
             ImGui.Text("Craft cost:");
             ImGui.TableSetColumnIndex(1);
-            ImGui.Text($"{pinned.CraftCost:N0} gil");
+            ImGui.Text(pinned.CraftCost > 0 ? $"{pinned.CraftCost:N0} gil" : "N/A — fetch prices first");
 
             ImGui.TableNextRow();
             ImGui.TableSetColumnIndex(0);
             ImGui.Text("MB sell price:");
             ImGui.TableSetColumnIndex(1);
-            ImGui.Text($"{pinned.MbPriceRaw:N0} gil");
+            ImGui.Text(pinned.MbPriceRaw > 0 ? $"{pinned.MbPriceRaw:N0} gil" : "N/A — browse MB or refresh scanner");
 
             if (tax > 0)
             {
@@ -69,18 +71,25 @@ public sealed class ItemDetailPopout : Window
                 ImGui.TableSetColumnIndex(0);
                 ImGui.TextDisabled($"After tax ({tax:F0}%):");
                 ImGui.TableSetColumnIndex(1);
-                ImGui.TextDisabled($"{pinned.MbPriceAfterTax:N0} gil");
+                ImGui.TextDisabled(pinned.MbPriceAfterTax > 0 ? $"{pinned.MbPriceAfterTax:N0} gil" : "N/A");
             }
 
             ImGui.TableNextRow();
             ImGui.TableSetColumnIndex(0);
             ImGui.Text("Profit:");
             ImGui.TableSetColumnIndex(1);
-            var profitColor = pinned.Profit >= 0
-                ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
-                : ImGui.ColorConvertU32ToFloat4(config.LossColor);
-            var profitText = pinned.Profit >= 0 ? $"+{pinned.Profit:N0} gil" : $"{pinned.Profit:N0} gil";
-            ImGui.TextColored(profitColor, profitText);
+            if (pinned.MbPriceRaw > 0 && pinned.CraftCost > 0)
+            {
+                var profitColor = pinned.Profit >= 0
+                    ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
+                    : ImGui.ColorConvertU32ToFloat4(config.LossColor);
+                var profitText = pinned.Profit >= 0 ? $"+{pinned.Profit:N0} gil" : $"{pinned.Profit:N0} gil";
+                ImGui.TextColored(profitColor, profitText);
+            }
+            else
+            {
+                ImGui.TextDisabled("N/A");
+            }
 
             ImGui.EndTable();
         }
@@ -141,6 +150,7 @@ public sealed class ItemDetailPopout : Window
                 ResultItemId = pinned.ItemId,
             });
             config.Save();
+            OnAddToShoppingList?.Invoke();
         }
 
         ImGui.SameLine();
