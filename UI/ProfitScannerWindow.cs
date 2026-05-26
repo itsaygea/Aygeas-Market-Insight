@@ -345,7 +345,7 @@ public sealed class ProfitScannerWindow : Window
             };
 
             // Map craft type index to job ID (CRP=8, BSM=9, ...)
-            var jobId = (byte)(craftType.RowId + 8);
+            var jobId = (byte)(recipe.CraftType.Value.RowId + 8);
 
             rows.Add(new ScannerRow
             {
