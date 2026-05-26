@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
-using Lumina.Excel.Sheets;
 
 namespace AygeaMarketInsight.UI;
 
@@ -15,12 +13,9 @@ public sealed class ShoppingListWindow : Window
     private readonly Configuration config;
     private readonly RecipeCache recipeCache;
     private readonly PriceCache priceCache;
-    private readonly UniversalisClient universalisClient;
     private readonly ArtisanIpc artisanIpc;
-    private readonly IFramework framework;
     private readonly IPluginLog log;
 
-    private bool isPinned;
     private bool showConfirmClear;
 
     // Aggregated ingredient data
@@ -40,21 +35,24 @@ public sealed class ShoppingListWindow : Window
         this.config = config;
         this.recipeCache = recipeCache;
         this.priceCache = priceCache;
-        this.universalisClient = universalisClient;
         this.artisanIpc = artisanIpc;
-        this.framework = framework;
         this.log = log;
 
-        Size = new System.Numerics.Vector2(550, 400);
+        Size = new System.Numerics.Vector2(600, 500);
         SizeCondition = ImGuiCond.FirstUseEver;
-
-        if (config.RememberPinState)
-            isPinned = config.ShoppingListItems.Count > 0;
     }
 
     public override void Draw()
     {
-        DrawHeader();
+        if (config.ShoppingListItems.Count == 0)
+        {
+            ImGui.TextDisabled("No items in shopping list.");
+            ImGui.TextDisabled("Right-click a recipe in the Profit Scanner to add items.");
+            return;
+        }
+
+        DrawRecipeList();
+        ImGui.Separator();
         DrawIngredientTable();
         DrawFooter();
     }
@@ -64,54 +62,111 @@ public sealed class ShoppingListWindow : Window
         needsRebuild = true;
     }
 
-    private void DrawHeader()
+    private void DrawRecipeList()
     {
-        // Pin button
-        var pinLabel = isPinned ? "Unpin" : "Pin";
-        if (ImGui.SmallButton(pinLabel))
+        ImGui.Text("Recipes");
+        ImGui.Spacing();
+
+        // Draw each recipe entry with quantity controls and remove button
+        for (int i = config.ShoppingListItems.Count - 1; i >= 0; i--)
         {
-            isPinned = !isPinned;
-            if (isPinned)
+            var entry = config.ShoppingListItems[i];
+            var recipe = recipeCache.GetRecipe(entry.RecipeId);
+            if (recipe == null) continue;
+
+            ImGui.PushID((int)entry.RecipeId);
+
+            // Recipe name
+            ImGui.Text(entry.RecipeName);
+
+            ImGui.SameLine();
+
+            // Quantity controls
+            if (ImGui.SmallButton("-"))
             {
-                Flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoCollapse;
-                var opacity = config.PinnedWindowOpacity;
-                ImGui.PushStyleVar(ImGuiStyleVar.Alpha, opacity);
+                if (entry.Quantity > 1)
+                    entry.Quantity--;
+                else
+                {
+                    config.ShoppingListItems.RemoveAt(i);
+                    needsRebuild = true;
+                }
+                config.Save();
+            }
+
+            ImGui.SameLine();
+            ImGui.Text($"{entry.Quantity}");
+            ImGui.SameLine();
+
+            if (ImGui.SmallButton("+"))
+            {
+                entry.Quantity++;
+                config.Save();
+            }
+
+            ImGui.SameLine();
+
+            // Craft cost for this recipe
+            var craftCost = recipeCache.CalculateCraftCost(recipe.Value, priceCache, out _);
+            var cached = priceCache.Get(entry.ResultItemId);
+            var mbPrice = cached?.NqPrice ?? 0;
+            var afterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
+            var profit = (int)(afterTax - craftCost);
+
+            if (mbPrice > 0 && craftCost > 0)
+            {
+                var profitColor = profit >= 0
+                    ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
+                    : ImGui.ColorConvertU32ToFloat4(config.LossColor);
+                var profitText = profit >= 0 ? $"+{profit:N0}" : $"{profit:N0}";
+                ImGui.TextColored(profitColor, $"Profit: {profitText} gil");
             }
             else
             {
-                Flags = ImGuiWindowFlags.None;
-                ImGui.PopStyleVar();
+                ImGui.TextDisabled("Profit: —");
             }
-        }
 
-        ImGui.SameLine();
-        ImGui.Text($"Shopping List ({config.ShoppingListItems.Count} recipes)");
+            ImGui.SameLine();
 
-        if (needsRebuild)
-        {
-            RebuildIngredients();
-            needsRebuild = false;
+            // Remove button
+            ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.6f, 0.2f, 0.2f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.8f, 0.3f, 0.3f, 1f));
+            if (ImGui.SmallButton("Remove"))
+            {
+                config.ShoppingListItems.RemoveAt(i);
+                config.Save();
+                needsRebuild = true;
+            }
+            ImGui.PopStyleColor(2);
+
+            ImGui.PopID();
         }
     }
 
     private void DrawIngredientTable()
     {
-        if (ingredients.Count == 0)
+        if (needsRebuild)
         {
-            ImGui.TextDisabled("No items in shopping list.");
-            ImGui.TextDisabled("Right-click a recipe in the Profit Scanner to add items.");
-            return;
+            RebuildIngredients();
+            needsRebuild = false;
         }
+
+        if (ingredients.Count == 0)
+            return;
+
+        ImGui.Text("Materials");
+        ImGui.Spacing();
 
         var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
                     ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.Resizable;
 
-        if (!ImGui.BeginTable("ShoppingTable", 5, flags))
+        if (!ImGui.BeginTable("ShoppingTable", 5, flags,
+            ImGui.GetContentRegionAvail() with { Y = ImGui.GetContentRegionAvail().Y - 40 }))
             return;
 
         ImGui.TableSetupColumn("Item Name", ImGuiTableColumnFlags.None, 250);
         ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.None, 50);
-        ImGui.TableSetupColumn("Current Price", ImGuiTableColumnFlags.None, 110);
+        ImGui.TableSetupColumn("Best Price", ImGuiTableColumnFlags.None, 110);
         ImGui.TableSetupColumn("Max Price", ImGuiTableColumnFlags.None, 110);
         ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.None, 70);
         ImGui.TableSetupScrollFreeze(0, 1);
@@ -131,7 +186,7 @@ public sealed class ShoppingListWindow : Window
             ImGui.Text($"{ing.Quantity}");
 
             ImGui.TableSetColumnIndex(2);
-            ImGui.Text(ing.CurrentPrice > 0 ? $"{ing.CurrentPrice:N0} gil" : "?");
+            ImGui.Text(ing.BestPrice > 0 ? $"{ing.BestPrice:N0} gil" : "—");
 
             ImGui.TableSetColumnIndex(3);
             ImGui.Text(ing.MaxPrice > 0 ? $"{ing.MaxPrice:N0} gil" : "—");
@@ -145,8 +200,6 @@ public sealed class ShoppingListWindow : Window
 
     private void DrawFooter()
     {
-        ImGui.Separator();
-
         // Copy List button
         if (ImGui.Button("Copy List"))
             CopyListToClipboard();
@@ -156,7 +209,7 @@ public sealed class ShoppingListWindow : Window
         // Clear button with confirmation
         if (!showConfirmClear)
         {
-            if (ImGui.Button("Clear"))
+            if (ImGui.Button("Clear All"))
                 showConfirmClear = true;
         }
         else
@@ -168,6 +221,7 @@ public sealed class ShoppingListWindow : Window
                 config.ShoppingListItems.Clear();
                 config.Save();
                 ingredients.Clear();
+                needsRebuild = true;
                 showConfirmClear = false;
             }
 
@@ -180,12 +234,16 @@ public sealed class ShoppingListWindow : Window
         if (artisanIpc.Available)
         {
             ImGui.SameLine();
-            if (ImGui.Button("Add to Artisan"))
+            if (ImGui.Button("Send to Artisan"))
             {
                 foreach (var entry in config.ShoppingListItems)
                     artisanIpc.CraftItem((ushort)entry.RecipeId, entry.Quantity);
             }
         }
+
+        // Total cost
+        var totalCost = ingredients.Sum(i => (long)i.BestPrice * i.Quantity);
+        ImGui.TextDisabled($"Total material cost: {totalCost:N0} gil");
     }
 
     private void RebuildIngredients()
@@ -199,11 +257,6 @@ public sealed class ShoppingListWindow : Window
             if (recipe == null) continue;
 
             var r = recipe.Value;
-            var resultItemId = r.ItemResult.RowId;
-
-            // Get sell price for the result item (after tax)
-            var cached = priceCache.Get(resultItemId);
-            uint sellPrice = (uint)((cached?.NqPrice ?? 0) * (1f - config.SalesTaxPercent / 100f));
 
             for (int i = 0; i < 8; i++)
             {
@@ -219,7 +272,7 @@ public sealed class ShoppingListWindow : Window
                     existing = new ShoppingIngredient
                     {
                         ItemId = itemId,
-                        ItemName = r.Ingredient[i].Value.Name.ToString(),
+                        ItemName = recipeCache.GetItemName(itemId),
                         Quantity = 0,
                     };
                     aggregated[itemId] = existing;
@@ -229,26 +282,30 @@ public sealed class ShoppingListWindow : Window
             }
         }
 
-        // Calculate max price and current price for each ingredient
+        // Calculate best price for each ingredient
         foreach (var ing in aggregated.Values)
         {
-            // Current price
-            var cached = priceCache.Get(ing.ItemId);
             var vendorPrice = recipeCache.GetVendorPrice(ing.ItemId);
+            var cached = priceCache.Get(ing.ItemId);
+            var mbPrice = cached?.NqPrice ?? 0;
 
-            if (cached != null && cached.NqPrice > 0)
+            // Use cheapest: vendor or MB
+            if (vendorPrice > 0 && (mbPrice == 0 || vendorPrice <= mbPrice))
             {
-                ing.CurrentPrice = cached.NqPrice;
-                ing.Source = (vendorPrice > 0 && vendorPrice <= cached.NqPrice) ? "Vendor" : "MB";
+                ing.BestPrice = vendorPrice;
+                ing.Source = "Vendor";
+            }
+            else if (mbPrice > 0)
+            {
+                ing.BestPrice = mbPrice;
+                ing.Source = "MB";
             }
             else if (vendorPrice > 0)
             {
-                ing.CurrentPrice = vendorPrice;
+                ing.BestPrice = vendorPrice;
                 ing.Source = "Vendor";
             }
 
-            // Max price calculation per ingredient:
-            // maxPrice_i = (sellPrice - sumOfOtherIngredientCosts) / qty_i
             CalculateMaxPrice(ing);
         }
 
@@ -262,9 +319,6 @@ public sealed class ShoppingListWindow : Window
 
     private void CalculateMaxPrice(ShoppingIngredient ingredient)
     {
-        // Calculate total cost of all OTHER ingredients across all recipes
-        uint otherCosts = 0;
-
         foreach (var entry in config.ShoppingListItems)
         {
             var recipe = recipeCache.GetRecipe(entry.RecipeId);
@@ -277,6 +331,7 @@ public sealed class ShoppingListWindow : Window
 
             var usesIngredient = false;
             int qtyNeeded = 0;
+            uint otherCosts = 0;
 
             for (int i = 0; i < 8; i++)
             {
@@ -305,9 +360,7 @@ public sealed class ShoppingListWindow : Window
 
             if (usesIngredient && sellPrice > 0)
             {
-                var totalOther = otherCosts;
-                var remaining = sellPrice > totalOther ? sellPrice - totalOther : 0;
-
+                var remaining = sellPrice > otherCosts ? sellPrice - otherCosts : 0;
                 if (qtyNeeded > 0)
                 {
                     var maxPerUnit = remaining / (uint)qtyNeeded;
@@ -315,8 +368,6 @@ public sealed class ShoppingListWindow : Window
                         ingredient.MaxPrice = maxPerUnit;
                 }
             }
-
-            otherCosts = 0; // Reset per recipe
         }
     }
 
@@ -324,15 +375,22 @@ public sealed class ShoppingListWindow : Window
     {
         var sb = new StringBuilder();
         sb.AppendLine("=== Aygea's Market Insight — Shopping List ===");
+        sb.AppendLine();
 
+        sb.AppendLine("-- Recipes --");
+        foreach (var entry in config.ShoppingListItems)
+            sb.AppendLine($"  {entry.RecipeName} x{entry.Quantity}");
+
+        sb.AppendLine();
+        sb.AppendLine("-- Materials --");
         foreach (var ing in ingredients)
         {
             var priceInfo = ing.Source == "Vendor"
-                ? $"Vendor: {ing.CurrentPrice:N0} gil"
-                : $"MB: {ing.CurrentPrice:N0} gil";
+                ? $"Vendor: {ing.BestPrice:N0} gil"
+                : $"MB: {ing.BestPrice:N0} gil";
 
             var maxInfo = ing.MaxPrice > 0 ? $"max {ing.MaxPrice:N0} gil" : "max —";
-            sb.AppendLine($"[{ing.Quantity}x]  {ing.ItemName}  — {maxInfo}  ({priceInfo})");
+            sb.AppendLine($"  [{ing.Quantity}x]  {ing.ItemName}  — {maxInfo}  ({priceInfo})");
         }
 
         sb.AppendLine("==============================================");
@@ -345,8 +403,8 @@ internal sealed class ShoppingIngredient
     public uint ItemId;
     public string ItemName = string.Empty;
     public int Quantity;
-    public uint CurrentPrice;
+    public uint BestPrice;
     public uint MaxPrice;
     public string Source = "?";
-    public bool IsOverBudget => MaxPrice > 0 && CurrentPrice > MaxPrice;
+    public bool IsOverBudget => MaxPrice > 0 && BestPrice > MaxPrice;
 }

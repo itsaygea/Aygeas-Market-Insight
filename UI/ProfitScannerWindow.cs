@@ -366,13 +366,19 @@ public sealed class ProfitScannerWindow : Window
 
     private void AddToShoppingList(ScannerRow row)
     {
-        config.ShoppingListItems.Add(new ShoppingListEntry
+        var existing = config.ShoppingListItems.FirstOrDefault(e => e.RecipeId == row.RecipeId);
+        if (existing != null)
+            existing.Quantity++;
+        else
         {
-            RecipeId = row.RecipeId,
-            Quantity = 1,
-            RecipeName = row.ItemName,
-            ResultItemId = row.ResultItemId,
-        });
+            config.ShoppingListItems.Add(new ShoppingListEntry
+            {
+                RecipeId = row.RecipeId,
+                Quantity = 1,
+                RecipeName = row.ItemName,
+                ResultItemId = row.ResultItemId,
+            });
+        }
         config.Save();
         OnAddToShoppingList?.Invoke();
     }

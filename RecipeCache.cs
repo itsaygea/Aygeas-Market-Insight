@@ -66,7 +66,7 @@ public sealed class RecipeCache
         {
             itemNames[item.RowId] = item.Name.ToString();
 
-            var cost = (uint)item.PriceLow;
+            var cost = (uint)item.PriceMid;
             if (cost > 0)
             {
                 if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)

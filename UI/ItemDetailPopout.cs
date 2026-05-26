@@ -168,13 +168,7 @@ public sealed class ItemDetailPopout : Window
         ImGui.Spacing();
         if (ImGui.Button("Add to Shopping List"))
         {
-            config.ShoppingListItems.Add(new ShoppingListEntry
-            {
-                RecipeId = pinned.RecipeId,
-                Quantity = 1,
-                RecipeName = pinned.ItemName,
-                ResultItemId = pinned.ItemId,
-            });
+            AddOrIncrement(pinned.RecipeId, pinned.ItemName, pinned.ItemId);
             config.Save();
             OnAddToShoppingList?.Invoke();
         }
@@ -182,5 +176,22 @@ public sealed class ItemDetailPopout : Window
         ImGui.SameLine();
         if (ImGui.SmallButton("Unpin"))
             pinned = null;
+    }
+
+    private void AddOrIncrement(uint recipeId, string recipeName, uint resultItemId)
+    {
+        var existing = config.ShoppingListItems.FirstOrDefault(e => e.RecipeId == recipeId);
+        if (existing != null)
+            existing.Quantity++;
+        else
+        {
+            config.ShoppingListItems.Add(new ShoppingListEntry
+            {
+                RecipeId = recipeId,
+                Quantity = 1,
+                RecipeName = recipeName,
+                ResultItemId = resultItemId,
+            });
+        }
     }
 }
