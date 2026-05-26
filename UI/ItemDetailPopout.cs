@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Dalamud.Interface.Windowing;
 using Dalamud.Bindings.ImGui;
 
