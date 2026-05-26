@@ -116,6 +116,14 @@ public sealed class ConfigWindow : Window
         Checkbox("Resolve sub-recipes recursively", config.ResolveSubRecipesRecursively, v => config.ResolveSubRecipesRecursively = v);
         Checkbox("Highlight over-budget ingredients in red", config.HighlightOverBudgetIngredients, v => config.HighlightOverBudgetIngredients = v);
 
+        var margin = config.TargetProfitMargin * 100f;
+        if (ImGui.SliderFloat("Target profit margin %", ref margin, 0f, 80f, "%.0f%%"))
+        {
+            config.TargetProfitMargin = Math.Clamp(margin / 100f, 0f, 0.80f);
+            config.Save();
+        }
+        ImGui.TextDisabled("Used to calculate max price per ingredient in the shopping list.");
+
         ImGui.EndTabItem();
     }
 

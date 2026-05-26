@@ -37,6 +37,7 @@ public class Configuration : IPluginConfiguration
     public float PinnedWindowOpacity { get; set; } = 0.85f;
     public bool ResolveSubRecipesRecursively { get; set; } = true;
     public bool HighlightOverBudgetIngredients { get; set; } = true;
+    public float TargetProfitMargin { get; set; } = 0.20f;
 
     // Persisted shopping list
     public List<ShoppingListEntry> ShoppingListItems { get; set; } = [];
