@@ -70,6 +70,7 @@ public sealed class Plugin : IDalamudPlugin
         // Events
         pluginInterface.UiBuilder.Draw += OnDraw;
         pluginInterface.UiBuilder.OpenConfigUi += OnOpenConfig;
+        pluginInterface.UiBuilder.OpenMainUi += OnOpenMainUi;
         marketBoard.OfferingsReceived += OnMarketBoardOfferings;
 
         // Artisan re-detection
@@ -93,6 +94,11 @@ public sealed class Plugin : IDalamudPlugin
     private void OnOpenConfig()
     {
         pluginUI.ToggleConfigWindow();
+    }
+
+    private void OnOpenMainUi()
+    {
+        pluginUI.ToggleScannerWindow();
     }
 
     private void OnMarketBoardOfferings(IMarketBoardCurrentOfferings offerings)
@@ -149,6 +155,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         pluginInterface.UiBuilder.Draw -= OnDraw;
         pluginInterface.UiBuilder.OpenConfigUi -= OnOpenConfig;
+        pluginInterface.UiBuilder.OpenMainUi -= OnOpenMainUi;
 
         marketBoard.OfferingsReceived -= OnMarketBoardOfferings;
         pluginInterface.ActivePluginsChanged -= OnPluginsChanged;

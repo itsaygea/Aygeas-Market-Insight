@@ -7,7 +7,7 @@
   "AssemblyVersion": "1.0.0.0",
   "RepoUrl": "https://github.com/itsaygea/Aygeas-Market-Insight",
   "DonateButtonUrl": "https://ko-fi.com/aygea",
-  "DalamudApiLevel": 11,
+  "DalamudApiLevel": 15,
   "Tags": [ "market", "crafting", "profit", "tooltip", "shopping list", "universalis" ],
   "ImageUrls": [],
   "IconUrl": "",
