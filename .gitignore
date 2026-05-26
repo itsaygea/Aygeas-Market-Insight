@@ -1,0 +1,41 @@
+# Safe to commit: source files, manifest, CLAUDE.md, README
+# Never commit: build output, IDE state, any secrets or API keys
+
+## Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## JetBrains Rider
+.idea/
+
+## VS Code
+.vscode/
+
+## Secrets (case-insensitive)
+*secrets*
+*private*
+*apikey*
+*token*
+*.pfx
+*.pem
+*.key
+
+## Environment
+.env
+.env.*
+
+## App settings (build artifacts)
+appsettings*.json
+
+## NuGet
+*.nupkg
+packages/

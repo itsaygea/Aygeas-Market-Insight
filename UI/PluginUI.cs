@@ -1,0 +1,49 @@
+using System;
+using Dalamud.Interface.Windowing;
+using Dalamud.Plugin;
+
+namespace AygeaMarketInsight.UI;
+
+public sealed class PluginUI : IDisposable
+{
+    private readonly WindowSystem windowSystem;
+    private readonly ConfigWindow configWindow;
+    private readonly ProfitScannerWindow scannerWindow;
+    private readonly ShoppingListWindow shoppingListWindow;
+
+    public PluginUI(
+        IDalamudPluginInterface pluginInterface,
+        ConfigWindow configWindow,
+        ProfitScannerWindow scannerWindow,
+        ShoppingListWindow shoppingListWindow)
+    {
+        this.configWindow = configWindow;
+        this.scannerWindow = scannerWindow;
+        this.shoppingListWindow = shoppingListWindow;
+
+        windowSystem = new WindowSystem("AygeaMarketInsight.Windows");
+        windowSystem.AddWindow(configWindow);
+        windowSystem.AddWindow(scannerWindow);
+        windowSystem.AddWindow(shoppingListWindow);
+
+        pluginInterface.UiBuilder.Draw += windowSystem.Draw;
+    }
+
+    public void Draw()
+    {
+        // WindowSystem.Draw is wired to UiBuilder.Draw in constructor,
+        // so this method is not needed for WindowSystem rendering.
+        // Kept for any additional overlay drawing if needed.
+    }
+
+    public void ToggleScannerWindow() => scannerWindow.IsOpen = !scannerWindow.IsOpen;
+    public void ToggleShoppingListWindow() => shoppingListWindow.IsOpen = !shoppingListWindow.IsOpen;
+    public void ToggleConfigWindow() => configWindow.IsOpen = !configWindow.IsOpen;
+
+    public void Dispose()
+    {
+        windowSystem.RemoveWindow(configWindow);
+        windowSystem.RemoveWindow(scannerWindow);
+        windowSystem.RemoveWindow(shoppingListWindow);
+    }
+}
