@@ -99,7 +99,7 @@ public sealed class ShoppingListWindow : Window
             ImGui.Indent();
 
             // Quantity and profit row
-            if (ImGui.SmallButton("-##qty"))
+            if (ImGui.SmallButton($"-##qty_{entry.RecipeId}"))
             {
                 if (entry.Quantity > 1) entry.Quantity--;
                 else { config.ShoppingListItems.RemoveAt(index); config.Save(); return; }
@@ -108,7 +108,7 @@ public sealed class ShoppingListWindow : Window
             ImGui.SameLine();
             ImGui.Text($"Craft: {entry.Quantity}");
             ImGui.SameLine();
-            if (ImGui.SmallButton("+##qty"))
+            if (ImGui.SmallButton($"+##qty_{entry.RecipeId}"))
             {
                 entry.Quantity++;
                 config.Save();
@@ -146,7 +146,7 @@ public sealed class ShoppingListWindow : Window
             ImGui.SameLine();
             ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.6f, 0.2f, 0.2f, 1f));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new System.Numerics.Vector4(0.8f, 0.3f, 0.3f, 1f));
-            if (ImGui.SmallButton("Remove"))
+            if (ImGui.SmallButton($"Remove##{entry.RecipeId}"))
             {
                 config.ShoppingListItems.RemoveAt(index);
                 config.Save();
