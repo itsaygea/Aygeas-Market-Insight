@@ -65,7 +65,7 @@ public sealed class Plugin : IDalamudPlugin
 
         tooltipHook = new TooltipHook(
             gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
-        var itemDetailPopout = new ItemDetailPopout(recipeCache, priceCache, config);
+        var itemDetailPopout = new ItemDetailPopout(recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
 
         pluginUI = new PluginUI(pluginInterface, configWindow, scannerWindow, shoppingListWindow, itemDetailPopout);
 

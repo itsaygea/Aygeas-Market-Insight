@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 
 namespace AygeaMarketInsight.UI;
@@ -10,18 +12,33 @@ public sealed class ItemDetailPopout : Window
 {
     private readonly RecipeCache recipeCache;
     private readonly PriceCache priceCache;
+    private readonly UniversalisClient universalisClient;
     private readonly Configuration config;
+    private readonly IObjectTable objectTable;
+    private readonly IFramework framework;
+    private readonly IPluginLog log;
 
     private PinnedItemData? pinned;
 
     public System.Action? OnAddToShoppingList { get; set; }
 
-    public ItemDetailPopout(RecipeCache recipeCache, PriceCache priceCache, Configuration config)
+    public ItemDetailPopout(
+        RecipeCache recipeCache,
+        PriceCache priceCache,
+        UniversalisClient universalisClient,
+        Configuration config,
+        IObjectTable objectTable,
+        IFramework framework,
+        IPluginLog log)
         : base("Aygea's Market Insight — Item Details###AMIItemDetail")
     {
         this.recipeCache = recipeCache;
         this.priceCache = priceCache;
+        this.universalisClient = universalisClient;
         this.config = config;
+        this.objectTable = objectTable;
+        this.framework = framework;
+        this.log = log;
 
         Size = new System.Numerics.Vector2(450, 400);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -39,7 +56,60 @@ public sealed class ItemDetailPopout : Window
         ImGui.SetNextWindowPos(pos, ImGuiCond.FirstUseEver);
     }
 
-    public void SetPinnedData(PinnedItemData data) => pinned = data;
+    public void SetPinnedData(PinnedItemData data)
+    {
+        pinned = data;
+        FetchMissingPrices();
+    }
+
+    private void FetchMissingPrices()
+    {
+        if (pinned == null) return;
+
+        var ids = new HashSet<uint> { pinned.ItemId };
+        if (recipeCache.GetRecipe(pinned.RecipeId) is { } recipe)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                var amount = (int)recipe.AmountIngredient[i];
+                var ingId = recipe.Ingredient[i].RowId;
+                if (amount > 0 && ingId != 0)
+                    ids.Add(ingId);
+            }
+        }
+
+        var toFetch = ids
+            .Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id))
+            .ToList();
+
+        if (toFetch.Count == 0) return;
+
+        foreach (var id in toFetch)
+            priceCache.MarkPending(id);
+
+        var world = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
+        var ttl = config.UniversalisCacheTtlMinutes;
+
+#pragma warning disable CS4014
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var results = await universalisClient.FetchPrices(world, toFetch, ttl);
+                foreach (var kvp in results)
+                {
+                    var p = kvp.Value;
+                    priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
+                        TimeSpan.FromMinutes(ttl));
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Warning(ex, "ItemDetailPopout price fetch failed");
+            }
+        });
+#pragma warning restore CS4014
+    }
 
     public override void Draw()
     {
@@ -130,8 +200,9 @@ public sealed class ItemDetailPopout : Window
             var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV |
                         ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY;
 
+            var tableHeight = Math.Max(ImGui.GetContentRegionAvail().Y - 40, 50f);
             if (ImGui.BeginTable("MaterialTable", 5, flags,
-                ImGui.GetContentRegionAvail() with { Y = ImGui.GetContentRegionAvail().Y - 40 }))
+                ImGui.GetContentRegionAvail() with { Y = tableHeight }))
             {
                 ImGui.TableSetupColumn("Material", ImGuiTableColumnFlags.None, 180);
                 ImGui.TableSetupColumn("Qty", ImGuiTableColumnFlags.None, 40);
