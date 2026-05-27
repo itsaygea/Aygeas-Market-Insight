@@ -83,7 +83,22 @@ public sealed class ShoppingListWindow : Window
 
         // Calculate prices for this recipe
         var cached = priceCache.Get(entry.ResultItemId);
-        var mbPrice = entry.SellAsHq ? (cached?.HqPrice ?? 0) : (cached?.NqPrice ?? 0);
+        var nqPrice = cached?.NqPrice ?? 0;
+        var hqPrice = cached?.HqPrice ?? 0;
+
+        // Auto-toggle quality if only one is available
+        if (nqPrice == 0 && hqPrice > 0 && !entry.SellAsHq)
+        {
+            entry.SellAsHq = true;
+            config.Save();
+        }
+        else if (hqPrice == 0 && nqPrice > 0 && entry.SellAsHq)
+        {
+            entry.SellAsHq = false;
+            config.Save();
+        }
+
+        var mbPrice = entry.SellAsHq ? hqPrice : nqPrice;
         var afterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
         var budget = (uint)(afterTax * (1f - config.TargetProfitMargin));
 
