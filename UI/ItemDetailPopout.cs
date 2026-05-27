@@ -19,6 +19,7 @@ public sealed class ItemDetailPopout : Window
     private readonly IPluginLog log;
 
     private PinnedItemData? pinned;
+    private bool showHq;
 
     public System.Action? OnAddToShoppingList { get; set; }
 
@@ -59,6 +60,7 @@ public sealed class ItemDetailPopout : Window
     public void SetPinnedData(PinnedItemData data)
     {
         pinned = data;
+        showHq = data.IsHq;
         FetchMissingPrices();
     }
 
@@ -106,6 +108,8 @@ public sealed class ItemDetailPopout : Window
             catch (Exception ex)
             {
                 log.Warning(ex, "ItemDetailPopout price fetch failed");
+                foreach (var id in toFetch)
+                    priceCache.Set(id, 0, 0, "failed", TimeSpan.FromMinutes(1));
             }
         });
 #pragma warning restore CS4014
@@ -119,9 +123,13 @@ public sealed class ItemDetailPopout : Window
             return;
         }
 
-        // Look up live prices from cache
+        // Look up live prices from cache, fall back to pinned snapshot
         var cached = priceCache.Get(pinned.ItemId);
-        uint mbPrice = pinned.IsHq ? cached?.HqPrice ?? 0 : cached?.NqPrice ?? 0;
+        uint mbPrice;
+        if (cached != null)
+            mbPrice = showHq ? cached.HqPrice : cached.NqPrice;
+        else
+            mbPrice = showHq ? (pinned.HqSnapshot > 0 ? pinned.HqSnapshot : pinned.MbPriceRaw) : pinned.MbPriceRaw;
         uint mbAfterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
 
         // Recalculate craft cost with live prices
@@ -135,10 +143,14 @@ public sealed class ItemDetailPopout : Window
 
         // Item name + craft level
         ImGui.Text(pinned.ItemName);
-        if (pinned.IsHq)
+
+        // HQ/NQ toggle
+        ImGui.SameLine();
+        if (ImGui.Checkbox("Show HQ", ref showHq))
         {
-            ImGui.SameLine();
-            ImGui.TextColored(new System.Numerics.Vector4(0.2f, 0.8f, 1f, 1f), "(HQ)");
+            // Refresh prices for the new quality if cache is stale
+            if (cached == null)
+                FetchMissingPrices();
         }
 
         var (level, craftType, isExpert) = recipeCache.GetRecipeDifficulty(pinned.RecipeId);

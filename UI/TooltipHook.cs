@@ -131,6 +131,8 @@ public sealed class TooltipHook : IDisposable
             catch (Exception ex)
             {
                 log.Warning(ex, "Tooltip price fetch failed");
+                foreach (var id in toFetch)
+                    priceCache.Set(id, 0, 0, "failed", TimeSpan.FromMinutes(1));
             }
 
             framework.RunOnFrameworkThread(() =>
@@ -182,7 +184,8 @@ public sealed class TooltipHook : IDisposable
             ItemName = itemName,
             RecipeId = bestRecipeId,
             CraftCost = craftCost,
-            MbPriceRaw = mbPriceRaw,
+            MbPriceRaw = cached?.NqPrice ?? 0,
+            HqSnapshot = cached?.HqPrice ?? 0,
             MbPriceAfterTax = mbPriceAfterTax,
             Profit = profit,
             IsHq = isHq,
@@ -264,6 +267,7 @@ public sealed class PinnedItemData
     public uint RecipeId;
     public uint CraftCost;
     public uint MbPriceRaw;
+    public uint HqSnapshot;
     public uint MbPriceAfterTax;
     public int Profit;
     public bool IsHq;
