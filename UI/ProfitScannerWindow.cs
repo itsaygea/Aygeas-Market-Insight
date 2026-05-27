@@ -28,7 +28,6 @@ public sealed class ProfitScannerWindow : Window
     private string loadingStatus = string.Empty;
     private DateTime lastRefreshTime;
     private uint worldId;
-    private bool hasFetchedOnce;
 
     // Filters
     private int minProfit;
@@ -295,7 +294,6 @@ public sealed class ProfitScannerWindow : Window
         if (worldId == 0) return;
 
         isLoading = true;
-        hasFetchedOnce = true;
         loadingStatus = "collecting items...";
 
 #pragma warning disable CS4014
