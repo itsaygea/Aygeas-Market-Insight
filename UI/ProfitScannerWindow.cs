@@ -26,7 +26,7 @@ public sealed class ProfitScannerWindow : Window
     private bool isLoading;
     private string loadingStatus = string.Empty;
     private DateTime lastRefreshTime;
-    private string worldName = string.Empty;
+    private uint worldId;
     private bool hasFetchedOnce;
 
     // Filters
@@ -271,8 +271,8 @@ public sealed class ProfitScannerWindow : Window
     {
         if (isLoading) return;
 
-        worldName = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
-        if (string.IsNullOrEmpty(worldName)) return;
+        worldId = objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+        if (worldId == 0) return;
 
         isLoading = true;
         hasFetchedOnce = true;
@@ -292,7 +292,7 @@ public sealed class ProfitScannerWindow : Window
 
                 framework.RunOnFrameworkThread(() => loadingStatus = "phase 1/2: fetching sell prices...");
 
-                var resultPrices = await universalisClient.FetchPrices(worldName, resultItemIds, ttl,
+                var resultPrices = await universalisClient.FetchPrices(worldId, resultItemIds, ttl,
                     (done, total) => framework.RunOnFrameworkThread(() =>
                         loadingStatus = $"phase 1/2: sell prices {done}/{total}"));
 
@@ -323,7 +323,7 @@ public sealed class ProfitScannerWindow : Window
                     }
                 }
 
-                var ingPrices = await universalisClient.FetchPrices(worldName, ingredientIds, ttl,
+                var ingPrices = await universalisClient.FetchPrices(worldId, ingredientIds, ttl,
                     (done, total) => framework.RunOnFrameworkThread(() =>
                         loadingStatus = $"phase 2/2: ingredients {done}/{total}"));
 

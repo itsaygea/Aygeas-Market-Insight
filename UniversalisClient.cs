@@ -30,13 +30,13 @@ public sealed class UniversalisClient : IDisposable
     }
 
     public async Task<Dictionary<uint, UniversalisItemPrice>> FetchPrices(
-        string worldOrDc,
+        uint worldId,
         IEnumerable<uint> itemIds,
         int ttlMinutes,
         Action<int, int>? onProgress = null)
     {
         var results = new Dictionary<uint, UniversalisItemPrice>();
-        var batchList = itemIds.Distinct().Chunk(100).ToArray();
+        var batchList = itemIds.Distinct().Chunk(50).ToArray();
         var totalBatches = batchList.Length;
 
         for (int batchIdx = 0; batchIdx < totalBatches; batchIdx++)
@@ -53,44 +53,49 @@ public sealed class UniversalisClient : IDisposable
             try
             {
                 var ids = string.Join(",", batchList[batchIdx]);
-                var url = $"https://universalis.app/api/v2/{worldOrDc}/{ids}?listings=1&fields=items.minPrice,minPriceNQ,minPriceHQ";
+                var url = $"https://universalis.app/api/v2/aggregated/{worldId}/{ids}";
 
                 var response = await http.GetAsync(url).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
-                    log.Warning($"Universalis API returned {response.StatusCode}");
+                    log.Warning($"Universalis aggregated API returned {response.StatusCode}");
                     continue;
                 }
 
                 var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
 
-                if (!doc.RootElement.TryGetProperty("items", out var items))
+                if (!doc.RootElement.TryGetProperty("results", out var resultsArr))
                     continue;
 
-                foreach (var prop in items.EnumerateObject())
+                foreach (var item in resultsArr.EnumerateArray())
                 {
-                    if (!uint.TryParse(prop.Name, out var itemId))
-                        continue;
+                    if (!item.TryGetProperty("itemId", out var idEl)) continue;
+                    var itemId = idEl.GetUInt32();
 
-                    var obj = prop.Value;
-                    uint nq = 0, hq = 0;
+                    uint nqWorld = 0, hqWorld = 0, nqDc = 0, hqDc = 0;
 
-                    if (obj.TryGetProperty("minPriceNQ", out var nqEl) && nqEl.ValueKind != JsonValueKind.Null)
-                        nq = nqEl.GetUInt32();
+                    if (item.TryGetProperty("nq", out var nq) &&
+                        nq.TryGetProperty("minListing", out var nqListing))
+                    {
+                        nqWorld = GetPrice(nqListing, "world");
+                        nqDc = GetPrice(nqListing, "dc");
+                    }
 
-                    if (obj.TryGetProperty("minPriceHQ", out var hqEl) && hqEl.ValueKind != JsonValueKind.Null)
-                        hq = hqEl.GetUInt32();
-
-                    // Fallback: minPrice covers both if specific fields missing
-                    if (nq == 0 && obj.TryGetProperty("minPrice", out var minEl) && minEl.ValueKind != JsonValueKind.Null)
-                        nq = minEl.GetUInt32();
+                    if (item.TryGetProperty("hq", out var hq) &&
+                        hq.TryGetProperty("minListing", out var hqListing))
+                    {
+                        hqWorld = GetPrice(hqListing, "world");
+                        hqDc = GetPrice(hqListing, "dc");
+                    }
 
                     results[itemId] = new UniversalisItemPrice
                     {
                         ItemId = itemId,
-                        NqPrice = nq,
-                        HqPrice = hq,
+                        NqPrice = nqWorld > 0 ? nqWorld : nqDc,
+                        HqPrice = hqWorld > 0 ? hqWorld : hqDc,
+                        NqDcPrice = nqDc,
+                        HqDcPrice = hqDc,
                         Source = "Universalis",
                         ExpiresAt = DateTime.UtcNow + TimeSpan.FromMinutes(ttlMinutes),
                     };
@@ -110,6 +115,13 @@ public sealed class UniversalisClient : IDisposable
         return results;
     }
 
+    private static uint GetPrice(JsonElement listing, string scope)
+    {
+        if (!listing.TryGetProperty(scope, out var el)) return 0;
+        if (!el.TryGetProperty("price", out var p)) return 0;
+        return p.ValueKind == JsonValueKind.Null ? 0 : p.GetUInt32();
+    }
+
     public void Dispose()
     {
         http.Dispose();
@@ -122,6 +134,8 @@ public sealed class UniversalisItemPrice
     public uint ItemId { get; set; }
     public uint NqPrice { get; set; }
     public uint HqPrice { get; set; }
+    public uint NqDcPrice { get; set; }
+    public uint HqDcPrice { get; set; }
     public DateTime ExpiresAt { get; set; }
     public string Source { get; set; } = "Universalis";
 }

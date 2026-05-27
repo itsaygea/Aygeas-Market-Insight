@@ -112,7 +112,8 @@ public sealed class TooltipHook : IDisposable
         foreach (var id in toFetch)
             priceCache.MarkPending(id);
 
-        var world = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "";
+        var worldId = objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+        if (worldId == 0) return;
         var ttl = config.UniversalisCacheTtlMinutes;
 
 #pragma warning disable CS4014
@@ -120,7 +121,7 @@ public sealed class TooltipHook : IDisposable
         {
             try
             {
-                var results = await universalisClient.FetchPrices(world, toFetch, ttl);
+                var results = await universalisClient.FetchPrices(worldId, toFetch, ttl);
                 foreach (var kvp in results)
                 {
                     var p = kvp.Value;
