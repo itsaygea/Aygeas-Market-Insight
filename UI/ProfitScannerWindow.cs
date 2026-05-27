@@ -94,7 +94,10 @@ public sealed class ProfitScannerWindow : Window
 
         if (isLoading)
         {
-            ImGui.TextDisabled($"Loading prices... {loadingStatus}");
+            if (rows.Count > 0)
+                ImGui.TextDisabled($"Updating... {loadingStatus}  (showing data from {lastRefreshTime:HH:mm})");
+            else
+                ImGui.TextDisabled($"Loading prices... {loadingStatus}");
         }
 
         DrawTable();
@@ -380,10 +383,10 @@ public sealed class ProfitScannerWindow : Window
         {
             var resultItemId = recipe.ItemResult.RowId;
 
-            var craftCost = recipeCache.CalculateCraftCost(recipe, priceCache, out _);
+            var craftCost = recipeCache.CalculateCraftCost(recipe, priceCache, out _, ignoreExpiry: true);
             if (craftCost == 0) continue;
 
-            var cached = priceCache.Get(resultItemId);
+            var cached = priceCache.GetIgnoreExpiry(resultItemId);
             var mbPrice = cached?.NqPrice ?? 0;
             var hqPrice = cached?.HqPrice ?? 0;
             var displayPrice = hqOnly ? hqPrice : mbPrice;

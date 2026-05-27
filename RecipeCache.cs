@@ -151,7 +151,7 @@ public sealed class RecipeCache
         public uint TotalCost = totalCost;
     }
 
-    public uint CalculateCraftCost(Recipe recipe, PriceCache priceCache, out List<IngredientCost> breakdown)
+    public uint CalculateCraftCost(Recipe recipe, PriceCache priceCache, out List<IngredientCost> breakdown, bool ignoreExpiry = false)
     {
         breakdown = [];
         uint total = 0;
@@ -168,7 +168,7 @@ public sealed class RecipeCache
             // Cheapest source: vendor price or MB price
             uint unitCost = GetVendorPrice(itemId);
 
-            var cached = priceCache.Get(itemId);
+            var cached = ignoreExpiry ? priceCache.GetIgnoreExpiry(itemId) : priceCache.Get(itemId);
             if (cached != null)
             {
                 var mbPrice = cached.NqPrice;

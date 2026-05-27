@@ -26,6 +26,11 @@ public sealed class PriceCache
         return null;
     }
 
+    public CachedPrice? GetIgnoreExpiry(uint itemId)
+    {
+        return cache.TryGetValue(itemId, out var entry) ? entry : null;
+    }
+
     public void Set(uint itemId, uint nqPrice, uint hqPrice, string source, TimeSpan ttl)
     {
         cache[itemId] = new CachedPrice
@@ -108,10 +113,7 @@ public sealed class PriceCache
     {
         var entries = new List<CachedPrice>(cache.Count);
         foreach (var kvp in cache)
-        {
-            if (kvp.Value.ExpiresAt > DateTime.UtcNow)
-                entries.Add(kvp.Value);
-        }
+            entries.Add(kvp.Value);
         return entries;
     }
 
@@ -146,7 +148,7 @@ public sealed class PriceCache
             var loaded = 0;
             foreach (var entry in entries)
             {
-                if (entry.ItemId == 0 || entry.ExpiresAt <= DateTime.UtcNow) continue;
+                if (entry.ItemId == 0) continue;
                 cache.TryAdd(entry.ItemId, entry);
                 loaded++;
             }
