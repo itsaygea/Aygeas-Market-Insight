@@ -229,8 +229,6 @@ public sealed class ItemDetailPopout : Window
                 {
                     ImGui.TableNextRow();
 
-                    var vendorPrice = recipeCache.GetVendorPrice(ing.ItemId);
-                    var source = vendorPrice > 0 && vendorPrice <= ing.CostPerUnit ? "Vendor" : "MB";
                     var total = ing.CostPerUnit * (uint)ing.Quantity;
 
                     ImGui.TableSetColumnIndex(0);
@@ -242,7 +240,27 @@ public sealed class ItemDetailPopout : Window
                     ImGui.TableSetColumnIndex(3);
                     ImGui.Text(total > 0 ? $"{total:N0}" : "—");
                     ImGui.TableSetColumnIndex(4);
-                    ImGui.Text(source);
+                    ImGui.Text(ing.Source);
+
+                    // Sub-craft breakdown rows
+                    if (ing.Source == "Craft" && ing.SubCraftBreakdown is { Count: > 0 })
+                    {
+                        foreach (var sub in ing.SubCraftBreakdown)
+                        {
+                            ImGui.TableNextRow();
+
+                            ImGui.TableSetColumnIndex(0);
+                            ImGui.TextDisabled($"  └ {recipeCache.GetItemName(sub.ItemId)}");
+                            ImGui.TableSetColumnIndex(1);
+                            ImGui.TextDisabled($"{sub.Quantity}");
+                            ImGui.TableSetColumnIndex(2);
+                            ImGui.TextDisabled(sub.CostPerUnit > 0 ? $"{sub.CostPerUnit:N0}" : "—");
+                            ImGui.TableSetColumnIndex(3);
+                            ImGui.TextDisabled(sub.CostPerUnit > 0 ? $"{sub.CostPerUnit * (uint)sub.Quantity:N0}" : "—");
+                            ImGui.TableSetColumnIndex(4);
+                            ImGui.TextDisabled(sub.Source);
+                        }
+                    }
                 }
 
                 ImGui.EndTable();

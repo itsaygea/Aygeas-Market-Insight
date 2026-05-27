@@ -149,9 +149,18 @@ public sealed class RecipeCache
         public int Quantity = quantity;
         public uint CostPerUnit = costPerUnit;
         public uint TotalCost = totalCost;
+        public string Source = "MB";
+        public List<IngredientCost>? SubCraftBreakdown;
     }
 
     public uint CalculateCraftCost(Recipe recipe, PriceCache priceCache, out List<IngredientCost> breakdown, bool ignoreExpiry = false)
+    {
+        return CalculateCraftCostInternal(recipe, priceCache, out breakdown, ignoreExpiry, [], 0);
+    }
+
+    private const int MaxSubCraftDepth = 3;
+
+    private uint CalculateCraftCostInternal(Recipe recipe, PriceCache priceCache, out List<IngredientCost> breakdown, bool ignoreExpiry, HashSet<uint> visited, int depth)
     {
         breakdown = [];
         uint total = 0;
@@ -165,15 +174,46 @@ public sealed class RecipeCache
 
             var qty = amount;
 
-            // Cheapest source: vendor price or MB price
+            // Start with vendor price
             uint unitCost = GetVendorPrice(itemId);
+            string source = unitCost > 0 ? "Vendor" : "MB";
+            List<IngredientCost>? subBreakdown = null;
 
+            // Check MB price
             var cached = ignoreExpiry ? priceCache.GetIgnoreExpiry(itemId) : priceCache.Get(itemId);
             if (cached != null)
             {
                 var mbPrice = cached.NqPrice;
-                if (unitCost == 0 || (mbPrice > 0 && mbPrice < unitCost))
+                if (mbPrice > 0 && (unitCost == 0 || mbPrice < unitCost))
+                {
                     unitCost = mbPrice;
+                    source = "MB";
+                }
+            }
+
+            // Check sub-craft if item is craftable, within depth limit, and not circular
+            if (depth < MaxSubCraftDepth && !visited.Contains(itemId) && itemIdToRecipes.TryGetValue(itemId, out var recipes) && recipes.Count > 0)
+            {
+                uint bestCraftCost = uint.MaxValue;
+                List<IngredientCost> bestCraftBreakdown = [];
+
+                foreach (var subRecipe in recipes)
+                {
+                    var subVisited = new HashSet<uint>(visited) { itemId };
+                    var craftCost = CalculateCraftCostInternal(subRecipe, priceCache, out var subBd, ignoreExpiry, subVisited, depth + 1);
+                    if (craftCost > 0 && craftCost < bestCraftCost)
+                    {
+                        bestCraftCost = craftCost;
+                        bestCraftBreakdown = subBd;
+                    }
+                }
+
+                if (bestCraftCost != uint.MaxValue && bestCraftCost < unitCost)
+                {
+                    unitCost = bestCraftCost;
+                    source = "Craft";
+                    subBreakdown = bestCraftBreakdown;
+                }
             }
 
             if (unitCost == 0)
@@ -181,7 +221,11 @@ public sealed class RecipeCache
 
             var lineCost = unitCost * (uint)qty;
             total += lineCost;
-            breakdown.Add(new IngredientCost(itemId, qty, unitCost, lineCost));
+            breakdown.Add(new IngredientCost(itemId, qty, unitCost, lineCost)
+            {
+                Source = source,
+                SubCraftBreakdown = subBreakdown,
+            });
         }
 
         return total;

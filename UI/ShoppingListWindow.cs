@@ -189,39 +189,12 @@ public sealed class ShoppingListWindow : Window
                 foreach (var ing in breakdown)
                 {
                     var qty = ing.Quantity * entry.Quantity;
-                    var vendorPrice = recipeCache.GetVendorPrice(ing.ItemId);
-                    var cachedIng = priceCache.Get(ing.ItemId);
-                    var mbIng = cachedIng?.NqPrice ?? 0;
-
-                    bool isVendorItem = vendorPrice > 0 && (mbIng == 0 || vendorPrice <= mbIng);
-                    uint bestPrice;
-                    string source;
-
-                    if (isVendorItem)
-                    {
-                        bestPrice = vendorPrice;
-                        source = "Vendor";
-                    }
-                    else if (mbIng > 0)
-                    {
-                        bestPrice = mbIng;
-                        source = "MB";
-                    }
-                    else if (vendorPrice > 0)
-                    {
-                        bestPrice = vendorPrice;
-                        source = "Vendor";
-                    }
-                    else
-                    {
-                        bestPrice = 0;
-                        source = "?";
-                    }
+                    var isVendorItem = ing.Source == "Vendor";
+                    var bestPrice = ing.CostPerUnit;
 
                     // Max price only applies to MB-sourced items
-                    // For vendor items, the price is fixed — no max needed
                     uint maxPrice = 0;
-                    if (!isVendorItem && budget > 0 && qty > 0)
+                    if (!isVendorItem && ing.Source != "Craft" && budget > 0 && qty > 0)
                     {
                         uint otherCosts = 0;
                         for (int j = 0; j < 8; j++)
@@ -254,10 +227,25 @@ public sealed class ShoppingListWindow : Window
                     ImGui.TableSetColumnIndex(0);
                     var overBudget = maxPrice > 0 && bestPrice > maxPrice;
                     var matName = recipeCache.GetItemName(ing.ItemId);
-                    if (overBudget && config.HighlightOverBudgetIngredients)
-                        ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName);
+
+                    if (ing.Source == "Craft" && ing.SubCraftBreakdown is { Count: > 0 })
+                    {
+                        if (overBudget && config.HighlightOverBudgetIngredients)
+                            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName);
+                        else
+                            ImGui.Text(matName);
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton($"+##sub_{ing.ItemId}_{entry.RecipeId}"))
+                        { /* toggle handled by TreeNode below */ }
+                    }
                     else
-                        ImGui.Text(matName);
+                    {
+                        if (overBudget && config.HighlightOverBudgetIngredients)
+                            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName);
+                        else
+                            ImGui.Text(matName);
+                    }
+
                     if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                     {
                         ImGui.SetClipboardText(matName);
@@ -278,8 +266,8 @@ public sealed class ShoppingListWindow : Window
                     ImGui.Text(bestPrice > 0 ? $"{bestPrice:N0}" : "—");
 
                     ImGui.TableSetColumnIndex(3);
-                    if (isVendorItem)
-                        ImGui.TextDisabled("Vendor");
+                    if (isVendorItem || ing.Source == "Craft")
+                        ImGui.TextDisabled(ing.Source);
                     else if (maxPrice > 0)
                     {
                         if (overBudget)
@@ -291,7 +279,31 @@ public sealed class ShoppingListWindow : Window
                         ImGui.TextDisabled("—");
 
                     ImGui.TableSetColumnIndex(4);
-                    ImGui.Text(source);
+                    ImGui.Text(ing.Source);
+
+                    // Sub-craft breakdown rows
+                    if (ing.Source == "Craft" && ing.SubCraftBreakdown is { Count: > 0 })
+                    {
+                        foreach (var sub in ing.SubCraftBreakdown)
+                        {
+                            ImGui.TableNextRow();
+
+                            ImGui.TableSetColumnIndex(0);
+                            ImGui.TextDisabled($"  └ {recipeCache.GetItemName(sub.ItemId)}");
+
+                            ImGui.TableSetColumnIndex(1);
+                            ImGui.TextDisabled($"{sub.Quantity * entry.Quantity}");
+
+                            ImGui.TableSetColumnIndex(2);
+                            ImGui.TextDisabled(sub.CostPerUnit > 0 ? $"{sub.CostPerUnit:N0}" : "—");
+
+                            ImGui.TableSetColumnIndex(3);
+                            ImGui.TextDisabled("—");
+
+                            ImGui.TableSetColumnIndex(4);
+                            ImGui.TextDisabled(sub.Source);
+                        }
+                    }
                 }
 
                 ImGui.EndTable();
