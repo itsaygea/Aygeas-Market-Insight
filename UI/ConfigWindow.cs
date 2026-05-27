@@ -1,6 +1,9 @@
 using System;
 using System.Reflection;
+using System.Threading.Tasks;
+using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 
@@ -10,17 +13,41 @@ public sealed class ConfigWindow : Window
 {
     private readonly Configuration config;
     private readonly ArtisanIpc artisanIpc;
+    private readonly IDalamudPluginInterface pluginInterface;
     private readonly IPluginLog log;
 
-    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IPluginLog log)
+    private IDalamudTextureWrap? emoteTexture;
+    private byte[]? pendingEmoteBytes;
+    private bool emoteLoadAttempted;
+
+    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IDalamudPluginInterface pluginInterface, IPluginLog log)
         : base("Aygea's Market Insight — Settings###AMIConfig")
     {
         this.config = config;
         this.artisanIpc = artisanIpc;
+        this.pluginInterface = pluginInterface;
         this.log = log;
 
         Size = new System.Numerics.Vector2(500, 450);
         SizeCondition = ImGuiCond.FirstUseEver;
+
+        _ = DownloadEmoteAsync();
+    }
+
+    private async Task DownloadEmoteAsync()
+    {
+        try
+        {
+            using var http = new System.Net.Http.HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(10);
+            var bytes = await http.GetByteArrayAsync(
+                "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_6abe43bf242c4ec785966edbd450b433/default/dark/1.0");
+            pendingEmoteBytes = bytes;
+        }
+        catch (Exception ex)
+        {
+            log.Warning(ex, "Failed to download Twitch emote image");
+        }
     }
 
     public override void Draw()
@@ -141,7 +168,28 @@ public sealed class ConfigWindow : Window
         ImGui.Text("A crafting profit and market price tool");
         ImGui.Text("for Final Fantasy XIV.");
         ImGui.Spacing();
-        ImGui.Text("Made with crazyayL by Aygea");
+        // Try to load texture from pending bytes (must be on framework thread)
+        if (emoteTexture == null && pendingEmoteBytes != null && !emoteLoadAttempted)
+        {
+            emoteLoadAttempted = true;
+            emoteTexture = pluginInterface.UiBuilder.LoadImage(pendingEmoteBytes);
+            pendingEmoteBytes = null;
+        }
+
+        if (emoteTexture != null)
+        {
+            var scale = 22f / emoteTexture.Height;
+            var emoteSize = new System.Numerics.Vector2(emoteTexture.Width * scale, emoteTexture.Height * scale);
+            ImGui.Text("Made with");
+            ImGui.SameLine();
+            ImGui.Image(emoteTexture.ImGuiHandle, emoteSize);
+            ImGui.SameLine();
+            ImGui.Text("by Aygea");
+        }
+        else
+        {
+            ImGui.Text("Made with crazyayL by Aygea");
+        }
         ImGui.Spacing();
 
         // Twitch button — purple #9146FF

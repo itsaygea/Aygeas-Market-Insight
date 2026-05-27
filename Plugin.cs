@@ -63,7 +63,7 @@ public sealed class Plugin : IDalamudPlugin
         artisanIpc = new ArtisanIpc(pluginInterface, log);
 
         // UI
-        var configWindow = new ConfigWindow(config, artisanIpc, log);
+        var configWindow = new ConfigWindow(config, artisanIpc, pluginInterface, log);
         var scannerWindow = new ProfitScannerWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, framework, log);
         var shoppingListWindow = new ShoppingListWindow(
