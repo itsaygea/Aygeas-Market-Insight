@@ -141,7 +141,7 @@ public sealed class ConfigWindow : Window
         ImGui.Text("A crafting profit and market price tool");
         ImGui.Text("for Final Fantasy XIV.");
         ImGui.Spacing();
-        ImGui.Text("Made with \xE2\x99\xA5 by Aygea");
+        ImGui.Text("Made with <3 by Aygea");
         ImGui.Spacing();
 
         // Twitch button — purple #9146FF
