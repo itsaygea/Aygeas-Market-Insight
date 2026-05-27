@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Dalamud.Game.Command;
@@ -29,6 +30,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PluginUI pluginUI;
 
     private readonly TooltipHook tooltipHook;
+    private readonly string cacheFilePath;
+    private DateTime lastCacheSave = DateTime.MinValue;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
@@ -53,6 +56,9 @@ public sealed class Plugin : IDalamudPlugin
         // Data layer
         recipeCache = new RecipeCache(dataManager, log);
         priceCache = new PriceCache();
+        cacheFilePath = Path.Combine(pluginInterface.GetPluginConfigDirectory(), "price_cache.json");
+        var loaded = priceCache.LoadFromFile(cacheFilePath);
+        log.Information($"PriceCache loaded {loaded} cached prices from disk");
         universalisClient = new UniversalisClient(log);
         artisanIpc = new ArtisanIpc(pluginInterface, log);
 
@@ -91,6 +97,13 @@ public sealed class Plugin : IDalamudPlugin
     {
         pluginUI.Draw();
         tooltipHook.Draw();
+
+        // Periodic cache save (every 5 minutes)
+        if ((DateTime.UtcNow - lastCacheSave).TotalMinutes >= 5)
+        {
+            priceCache.SaveToFile(cacheFilePath);
+            lastCacheSave = DateTime.UtcNow;
+        }
 
         // Ctrl+hover pins item details to the popout
         if (tooltipHook.CheckPinRequest() && tooltipHook.CurrentPinnedData != null)
@@ -171,6 +184,8 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        priceCache.SaveToFile(cacheFilePath);
+
         pluginInterface.UiBuilder.Draw -= OnDraw;
         pluginInterface.UiBuilder.OpenConfigUi -= OnOpenConfig;
         pluginInterface.UiBuilder.OpenMainUi -= OnOpenMainUi;

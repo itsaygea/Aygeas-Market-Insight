@@ -79,7 +79,13 @@ public sealed class ProfitScannerWindow : Window
 
     public override void OnOpen()
     {
-        if (!hasFetchedOnce && !isLoading)
+        // Build rows from cached prices immediately for instant display
+        if (rows.Count == 0 && !isLoading)
+            BuildRows();
+
+        // Auto-refresh if stale (older than cache TTL) or never fetched
+        if (!isLoading && (lastRefreshTime == default ||
+            (DateTime.UtcNow - lastRefreshTime).TotalMinutes > config.UniversalisCacheTtlMinutes))
             RefreshPrices();
     }
 
