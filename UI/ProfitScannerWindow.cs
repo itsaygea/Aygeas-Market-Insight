@@ -23,6 +23,7 @@ public sealed class ProfitScannerWindow : Window
     private List<ScannerRow> rows = [];
 
     public System.Action? OnAddToShoppingList { get; set; }
+    public System.Action<PinnedItemData>? OnOpenItemDetail { get; set; }
     private bool isLoading;
     private string loadingStatus = string.Empty;
     private DateTime lastRefreshTime;
@@ -148,19 +149,20 @@ public sealed class ProfitScannerWindow : Window
 
         var flags = ImGuiTableFlags.Sortable | ImGuiTableFlags.RowBg |
                     ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
-                    ImGuiTableFlags.Resizable;
+                    ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit;
 
-        if (!ImGui.BeginTable("ScannerTable", 7, flags,
+        if (!ImGui.BeginTable("ScannerTable", 8, flags,
             ImGui.GetContentRegionAvail() with { Y = ImGui.GetContentRegionAvail().Y - 30 }))
             return;
 
-        ImGui.TableSetupColumn("Item Name", ImGuiTableColumnFlags.DefaultSort);
+        ImGui.TableSetupColumn("Item Name", ImGuiTableColumnFlags.DefaultSort | ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("Job", ImGuiTableColumnFlags.DefaultSort, 50);
         ImGui.TableSetupColumn("iLvl", ImGuiTableColumnFlags.DefaultSort, 50);
         ImGui.TableSetupColumn("Craft Cost", ImGuiTableColumnFlags.DefaultSort, 90);
         ImGui.TableSetupColumn("MB Price (after tax)", ImGuiTableColumnFlags.DefaultSort, 110);
         ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.DefaultSort, 90);
         ImGui.TableSetupColumn("Margin %", ImGuiTableColumnFlags.DefaultSort, 70);
+        ImGui.TableSetupColumn("##add", ImGuiTableColumnFlags.NoSort, 30);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
 
@@ -178,6 +180,10 @@ public sealed class ProfitScannerWindow : Window
             ImGui.TableNextRow();
             ImGui.TableSetColumnIndex(0);
             ImGui.Text(row.ItemName);
+            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                OpenItemDetail(row);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Double-click to view details");
             ImGui.TableSetColumnIndex(1);
             ImGui.Text(row.JobName);
             ImGui.TableSetColumnIndex(2);
@@ -196,12 +202,20 @@ public sealed class ProfitScannerWindow : Window
             ImGui.TableSetColumnIndex(6);
             ImGui.Text($"{row.Margin:P0}");
 
-            // Right-click context menu
+            // "+" button column
+            ImGui.TableSetColumnIndex(7);
+            if (ImGui.SmallButton($"+##add_{row.RecipeId}"))
+                AddToShoppingList(row);
+
+            // Right-click context menu (works on any cell in the row)
             if (ImGui.IsItemHovered() && ImGui.IsMouseReleased(ImGuiMouseButton.Right))
                 ImGui.OpenPopup($"RowMenu_{row.RecipeId}");
 
             if (ImGui.BeginPopup($"RowMenu_{row.RecipeId}"))
             {
+                if (ImGui.MenuItem("View Details"))
+                    OpenItemDetail(row);
+
                 if (ImGui.MenuItem("Add to Shopping List"))
                     AddToShoppingList(row);
 
@@ -422,6 +436,33 @@ public sealed class ProfitScannerWindow : Window
         }
         config.Save();
         OnAddToShoppingList?.Invoke();
+    }
+
+    private void OpenItemDetail(ScannerRow row)
+    {
+        var recipe = recipeCache.GetRecipe(row.RecipeId);
+        if (recipe == null) return;
+
+        var r = recipe.Value;
+        var craftCost = recipeCache.CalculateCraftCost(r, priceCache, out var breakdown);
+        var cached = priceCache.Get(row.ResultItemId);
+        var mbPrice = cached?.NqPrice ?? 0;
+        var hqPrice = cached?.HqPrice ?? 0;
+        var afterTax = (uint)(row.MbPrice * (1f - config.SalesTaxPercent / 100f));
+
+        OnOpenItemDetail?.Invoke(new PinnedItemData
+        {
+            ItemId = row.ResultItemId,
+            ItemName = row.ItemName,
+            RecipeId = row.RecipeId,
+            CraftCost = craftCost,
+            MbPriceRaw = mbPrice,
+            HqSnapshot = hqPrice,
+            MbPriceAfterTax = afterTax,
+            Profit = (int)(afterTax - craftCost),
+            IsHq = hqPrice > 0 && (mbPrice == 0 || hqPrice > mbPrice),
+            Breakdown = breakdown,
+        });
     }
 }
 
