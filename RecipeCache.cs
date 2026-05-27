@@ -55,6 +55,7 @@ public sealed class RecipeCache
 
     private void LoadVendorPrices(IDataManager dataManager)
     {
+        // Load item names and PriceMid (Ask = vendor buy price) from Item sheet
         var items = dataManager.GetExcelSheet<Item>();
         if (items == null)
         {
@@ -62,16 +63,36 @@ public sealed class RecipeCache
             return;
         }
 
+        var itemAskPrices = new Dictionary<uint, uint>();
         foreach (var item in items)
         {
             itemNames[item.RowId] = item.Name.ToString();
+            var ask = (uint)item.PriceMid;
+            if (ask > 0)
+                itemAskPrices[item.RowId] = ask;
+        }
 
-            // PriceLow = buy-from-vendor price (0 if not sold by any vendor)
-            var cost = (uint)item.PriceLow;
-            if (cost > 0)
+        // Cross-reference with GilShopItem to identify items actually sold by NPC vendors
+        var gilShopItems = dataManager.GetSubrowExcelSheet<GilShopItem>();
+        if (gilShopItems == null)
+        {
+            log.Warning("Failed to load GilShopItem sheet — vendor prices unavailable");
+            return;
+        }
+
+        foreach (var shop in gilShopItems)
+        {
+            for (int i = 0; i < shop.Count; i++)
             {
-                if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)
-                    vendorPrices[item.RowId] = cost;
+                var entry = shop[i];
+                var itemId = entry.Item.RowId;
+                if (itemId == 0) continue;
+
+                if (itemAskPrices.TryGetValue(itemId, out var price) && price > 0)
+                {
+                    if (!vendorPrices.TryGetValue(itemId, out var existing) || price < existing)
+                        vendorPrices[itemId] = price;
+                }
             }
         }
     }
