@@ -1,9 +1,8 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
-using Dalamud.Interface;
+using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Windowing;
-using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 
@@ -13,19 +12,17 @@ public sealed class ConfigWindow : Window
 {
     private readonly Configuration config;
     private readonly ArtisanIpc artisanIpc;
-    private readonly IDalamudPluginInterface pluginInterface;
+    private readonly ITextureProvider textureProvider;
     private readonly IPluginLog log;
 
     private IDalamudTextureWrap? emoteTexture;
-    private byte[]? pendingEmoteBytes;
-    private bool emoteLoadAttempted;
 
-    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IDalamudPluginInterface pluginInterface, IPluginLog log)
+    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, ITextureProvider textureProvider, IPluginLog log)
         : base("Aygea's Market Insight — Settings###AMIConfig")
     {
         this.config = config;
         this.artisanIpc = artisanIpc;
-        this.pluginInterface = pluginInterface;
+        this.textureProvider = textureProvider;
         this.log = log;
 
         Size = new System.Numerics.Vector2(500, 450);
@@ -42,7 +39,7 @@ public sealed class ConfigWindow : Window
             http.Timeout = TimeSpan.FromSeconds(10);
             var bytes = await http.GetByteArrayAsync(
                 "https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_6abe43bf242c4ec785966edbd450b433/default/dark/1.0");
-            pendingEmoteBytes = bytes;
+            emoteTexture = await textureProvider.CreateFromImageAsync(bytes, "crazyayL emote");
         }
         catch (Exception ex)
         {
@@ -168,21 +165,13 @@ public sealed class ConfigWindow : Window
         ImGui.Text("A crafting profit and market price tool");
         ImGui.Text("for Final Fantasy XIV.");
         ImGui.Spacing();
-        // Try to load texture from pending bytes (must be on framework thread)
-        if (emoteTexture == null && pendingEmoteBytes != null && !emoteLoadAttempted)
-        {
-            emoteLoadAttempted = true;
-            emoteTexture = pluginInterface.UiBuilder.LoadImage(pendingEmoteBytes);
-            pendingEmoteBytes = null;
-        }
-
         if (emoteTexture != null)
         {
-            var scale = 22f / emoteTexture.Height;
-            var emoteSize = new System.Numerics.Vector2(emoteTexture.Width * scale, emoteTexture.Height * scale);
+            var scale = 22f / emoteTexture.Size.Y;
+            var emoteSize = new System.Numerics.Vector2(emoteTexture.Size.X * scale, emoteTexture.Size.Y * scale);
             ImGui.Text("Made with");
             ImGui.SameLine();
-            ImGui.Image(emoteTexture.ImGuiHandle, emoteSize);
+            ImGui.Image(emoteTexture.ImGuiIntPtr, emoteSize);
             ImGui.SameLine();
             ImGui.Text("by Aygea");
         }

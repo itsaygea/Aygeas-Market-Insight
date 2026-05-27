@@ -42,7 +42,8 @@ public sealed class Plugin : IDalamudPlugin
         IObjectTable objectTable,
         IFramework framework,
         IPluginLog log,
-        Dalamud.Plugin.Services.INotificationManager notificationManager)
+        Dalamud.Plugin.Services.INotificationManager notificationManager,
+        ITextureProvider textureProvider)
     {
         this.pluginInterface = pluginInterface;
         this.marketBoard = marketBoard;
@@ -63,7 +64,7 @@ public sealed class Plugin : IDalamudPlugin
         artisanIpc = new ArtisanIpc(pluginInterface, log);
 
         // UI
-        var configWindow = new ConfigWindow(config, artisanIpc, pluginInterface, log);
+        var configWindow = new ConfigWindow(config, artisanIpc, textureProvider, log);
         var scannerWindow = new ProfitScannerWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, framework, log);
         var shoppingListWindow = new ShoppingListWindow(
