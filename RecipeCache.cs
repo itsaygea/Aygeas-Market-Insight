@@ -63,26 +63,11 @@ public sealed class RecipeCache
         }
 
         foreach (var item in items)
+        {
             itemNames[item.RowId] = item.Name.ToString();
 
-        // Collect item IDs actually sold by NPC vendors
-        var vendorItemIds = new HashSet<uint>();
-        var gilShopItems = dataManager.GetExcelSheet<GilShopItem>();
-        if (gilShopItems != null)
-        {
-            foreach (var entry in gilShopItems)
-            {
-                if (entry.Item.RowId != 0)
-                    vendorItemIds.Add(entry.Item.RowId);
-            }
-        }
-
-        // Set vendor price only for items confirmed sold by vendors
-        foreach (var item in items)
-        {
-            if (!vendorItemIds.Contains(item.RowId)) continue;
-
-            var cost = (uint)item.PriceLow; // buy-from-vendor price
+            // PriceLow = buy-from-vendor price (0 if not sold by any vendor)
+            var cost = (uint)item.PriceLow;
             if (cost > 0)
             {
                 if (!vendorPrices.TryGetValue(item.RowId, out var existing) || cost < existing)
