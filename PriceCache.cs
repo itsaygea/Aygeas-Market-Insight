@@ -13,6 +13,8 @@ public sealed class PriceCache
     private readonly HashSet<uint> pendingFetches = [];
     private readonly object pendingLock = new();
 
+    public int Generation { get; private set; }
+
     public CachedPrice? Get(uint itemId)
     {
         if (cache.TryGetValue(itemId, out var entry))
@@ -41,6 +43,7 @@ public sealed class PriceCache
             Source = source,
             ExpiresAt = DateTime.UtcNow + ttl,
         };
+        Generation++;
 
         lock (pendingLock)
         {
@@ -58,6 +61,7 @@ public sealed class PriceCache
                 pendingFetches.Remove(entry.ItemId);
             }
         }
+        Generation++;
     }
 
     public void Remove(uint itemId)

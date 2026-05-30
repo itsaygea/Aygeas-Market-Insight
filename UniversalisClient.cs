@@ -36,7 +36,7 @@ public sealed class UniversalisClient : IDisposable
         Action<int, int>? onProgress = null)
     {
         var results = new Dictionary<uint, UniversalisItemPrice>();
-        var batchList = itemIds.Distinct().Chunk(50).ToArray();
+        var batchList = itemIds.Distinct().Chunk(100).ToArray();
         var totalBatches = batchList.Length;
 
         for (int batchIdx = 0; batchIdx < totalBatches; batchIdx++)

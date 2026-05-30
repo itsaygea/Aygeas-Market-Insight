@@ -35,6 +35,10 @@ public sealed class ProfitScannerWindow : Window
     private bool hqOnly;
     private string searchQuery = string.Empty;
 
+    // Filter cache
+    private List<ScannerRow>? cachedFilteredRows;
+    private bool filtersDirty = true;
+
     // Sorting
     private ImGuiSortDirection sortDirection;
     private int sortColumn = 5; // Profit by default
@@ -110,6 +114,11 @@ public sealed class ProfitScannerWindow : Window
 
     private void DrawControls()
     {
+        var oldMinProfit = minProfit;
+        var oldMinIlvl = minIlvl;
+        var oldHqOnly = hqOnly;
+        var oldSearchQuery = searchQuery;
+
         if (ImGui.Button("Refresh"))
             RefreshPrices();
 
@@ -141,6 +150,7 @@ public sealed class ProfitScannerWindow : Window
                 {
                     if (enabled) enabledJobs.Remove(jobId);
                     else enabledJobs.Add(jobId);
+                    filtersDirty = true;
                 }
 
                 ImGui.PopStyleColor();
@@ -149,11 +159,20 @@ public sealed class ProfitScannerWindow : Window
 
             ImGui.NewLine();
         }
+
+        if (minProfit != oldMinProfit || minIlvl != oldMinIlvl || hqOnly != oldHqOnly || searchQuery != oldSearchQuery)
+            filtersDirty = true;
     }
 
     private void DrawTable()
     {
-        var filteredRows = GetFilteredRows();
+        if (filtersDirty)
+        {
+            cachedFilteredRows = GetFilteredRows().ToList();
+            filtersDirty = false;
+        }
+
+        var filteredRows = cachedFilteredRows ?? [];
 
         var flags = ImGuiTableFlags.Sortable | ImGuiTableFlags.RowBg |
                     ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
@@ -181,6 +200,7 @@ public sealed class ProfitScannerWindow : Window
             sortColumn = spec.ColumnIndex;
             sortDirection = spec.SortDirection;
             sorts.SpecsDirty = false;
+            filtersDirty = true;
         }
 
         foreach (var row in filteredRows)
@@ -256,7 +276,7 @@ public sealed class ProfitScannerWindow : Window
         if (!string.IsNullOrEmpty(searchQuery))
         {
             var sq = searchQuery.ToLowerInvariant();
-            query = query.Where(r => r.ItemName.ToLowerInvariant().Contains(sq));
+            query = query.Where(r => r.LowerItemName.Contains(sq));
         }
 
         query = query.Where(r => enabledJobs.Contains(r.JobId));
@@ -397,26 +417,18 @@ public sealed class ProfitScannerWindow : Window
             var profit = (int)(afterTax - craftCost);
             var margin = afterTax > 0 ? (float)profit / afterTax : 0f;
 
-            var itemName = recipe.ItemResult.Value.Name.ToString();
-            var itemLevel = recipe.ItemResult.Value.LevelItem.RowId;
-            var jobName = recipe.CraftType.Value.RowId switch
-            {
-                0 => "CRP", 1 => "BSM", 2 => "ARM", 3 => "GSM",
-                4 => "LTW", 5 => "WVR", 6 => "ALC", 7 => "CUL",
-                _ => "???",
-            };
-
-            // Map craft type index to job ID (CRP=8, BSM=9, ...)
-            var jobId = (byte)(recipe.CraftType.Value.RowId + 8);
+            var info = recipeCache.GetRecipeInfo(recipeId);
+            if (info == null) continue;
 
             rows.Add(new ScannerRow
             {
                 RecipeId = recipeId,
                 ResultItemId = resultItemId,
-                ItemName = itemName,
-                JobName = jobName,
-                JobId = jobId,
-                ItemLevel = (int)itemLevel,
+                ItemName = info.Value.ItemName,
+                LowerItemName = info.Value.ItemName.ToLowerInvariant(),
+                JobName = info.Value.JobName,
+                JobId = info.Value.JobId,
+                ItemLevel = info.Value.ItemLevel,
                 CraftCost = craftCost,
                 MbPrice = displayPrice,
                 HqPrice = hqPrice,
@@ -424,6 +436,8 @@ public sealed class ProfitScannerWindow : Window
                 Margin = margin,
             });
         }
+
+        filtersDirty = true;
     }
 
     private void AddToShoppingList(ScannerRow row)
@@ -478,6 +492,7 @@ internal sealed class ScannerRow
     public uint RecipeId;
     public uint ResultItemId;
     public string ItemName = string.Empty;
+    public string LowerItemName = string.Empty;
     public string JobName = string.Empty;
     public byte JobId;
     public int ItemLevel;

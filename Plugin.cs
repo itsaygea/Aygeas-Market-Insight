@@ -95,7 +95,6 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnDraw()
     {
-        pluginUI.Draw();
         tooltipHook.Draw();
 
         // Periodic cache save (every 5 minutes)

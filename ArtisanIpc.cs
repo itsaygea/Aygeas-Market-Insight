@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalamud.Plugin.Ipc;
 
 namespace AygeaMarketInsight;
 
@@ -10,6 +11,10 @@ public sealed class ArtisanIpc
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly IPluginLog log;
     private bool warningLogged;
+
+    private ICallGateSubscriber<bool>? isBusySubscriber;
+    private ICallGateSubscriber<ushort, int, object>? craftItemSubscriber;
+    private ICallGateSubscriber<Dictionary<int, string>>? getListsSubscriber;
 
     public bool Available { get; private set; }
 
@@ -24,25 +29,28 @@ public sealed class ArtisanIpc
     {
         try
         {
-            // Artisan.IsBusy — IPC method name: "Artisan.IsBusy"
-            var subscriber = pluginInterface.GetIpcSubscriber<bool>("Artisan.IsBusy");
-            subscriber.InvokeFunc();
+            isBusySubscriber = pluginInterface.GetIpcSubscriber<bool>("Artisan.IsBusy");
+            isBusySubscriber.InvokeFunc();
+            craftItemSubscriber = pluginInterface.GetIpcSubscriber<ushort, int, object>("Artisan.CraftItem");
+            getListsSubscriber = pluginInterface.GetIpcSubscriber<Dictionary<int, string>>("Artisan.GetLists");
             Available = true;
             log.Information("Artisan IPC detected and available");
         }
         catch
         {
             Available = false;
+            isBusySubscriber = null;
+            craftItemSubscriber = null;
+            getListsSubscriber = null;
         }
     }
 
     public bool IsBusy()
     {
-        if (!Available) return false;
+        if (!Available || isBusySubscriber == null) return false;
         try
         {
-            // IPC method: "Artisan.IsBusy" → bool()
-            return pluginInterface.GetIpcSubscriber<bool>("Artisan.IsBusy").InvokeFunc();
+            return isBusySubscriber.InvokeFunc();
         }
         catch (Exception ex)
         {
@@ -53,12 +61,10 @@ public sealed class ArtisanIpc
 
     public void CraftItem(ushort recipeId, int amount)
     {
-        if (!Available) return;
+        if (!Available || craftItemSubscriber == null) return;
         try
         {
-            // IPC method: "Artisan.CraftItem" → void(ushort recipeId, int amount)
-            pluginInterface.GetIpcSubscriber<ushort, int, object>("Artisan.CraftItem")
-                .InvokeAction(recipeId, amount);
+            craftItemSubscriber.InvokeAction(recipeId, amount);
         }
         catch (Exception ex)
         {
@@ -68,12 +74,10 @@ public sealed class ArtisanIpc
 
     public Dictionary<int, string>? GetLists()
     {
-        if (!Available) return null;
+        if (!Available || getListsSubscriber == null) return null;
         try
         {
-            // IPC method: "Artisan.GetLists" → Dictionary<int, string>()
-            return pluginInterface.GetIpcSubscriber<Dictionary<int, string>>("Artisan.GetLists")
-                .InvokeFunc();
+            return getListsSubscriber.InvokeFunc();
         }
         catch (Exception ex)
         {

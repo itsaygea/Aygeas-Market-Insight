@@ -20,17 +20,6 @@ public sealed class ShoppingListWindow : Window
 
     private bool showConfirmClear;
 
-    private sealed class CachedRecipeCalc
-    {
-        public uint CraftCost;
-        public List<RecipeCache.IngredientCost> Breakdown = [];
-        public long TotalMaterialCost;
-        public DateTime CachedAt;
-    }
-
-    private readonly Dictionary<uint, CachedRecipeCalc> craftCalcCache = [];
-    private static readonly TimeSpan CraftCalcCacheDuration = TimeSpan.FromSeconds(2);
-
     public ShoppingListWindow(
         Configuration config,
         RecipeCache recipeCache,
@@ -107,24 +96,9 @@ public sealed class ShoppingListWindow : Window
         var afterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
         var budget = (uint)(afterTax * (1f - config.TargetProfitMargin));
 
-        // Use cached craft cost calculation to avoid per-frame recursion
-        if (!craftCalcCache.TryGetValue(entry.RecipeId, out var cached) ||
-            (DateTime.UtcNow - cached.CachedAt) > CraftCalcCacheDuration)
-        {
-            var cost = recipeCache.CalculateCraftCost(r, priceCache, out var bd);
-            var matCost = bd.Sum(b => (long)b.CostPerUnit * b.Quantity);
-            craftCalcCache[entry.RecipeId] = cached = new CachedRecipeCalc
-            {
-                CraftCost = cost,
-                Breakdown = bd,
-                TotalMaterialCost = matCost,
-                CachedAt = DateTime.UtcNow,
-            };
-        }
-
-        var craftCost = cached.CraftCost;
-        var breakdown = cached.Breakdown;
-        var totalMaterialCost = cached.TotalMaterialCost;
+        // Calculate craft cost (memoized in RecipeCache)
+        var craftCost = recipeCache.CalculateCraftCost(r, priceCache, out var breakdown);
+        var totalMaterialCost = breakdown.Sum(b => (long)b.CostPerUnit * b.Quantity);
         var profit = (int)(afterTax - craftCost);
 
         // Header line: recipe name + quantity controls + profit + remove

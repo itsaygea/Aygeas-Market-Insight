@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
@@ -18,6 +19,7 @@ public sealed class TooltipHook : IDisposable
     private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private CancellationTokenSource? hoverCts;
 
     private uint hoveredItemId;
     private bool needsDraw;
@@ -60,7 +62,13 @@ public sealed class TooltipHook : IDisposable
 
     private void OnHoveredItemChanged(object? sender, ulong itemId)
     {
-        if (itemId == 0)
+        // Cancel any previous fetch for stale hovers
+        hoverCts?.Cancel();
+        hoverCts?.Dispose();
+        hoverCts = new CancellationTokenSource();
+        var token = hoverCts.Token;
+
+        if (itemId == 0 || token.IsCancellationRequested)
         {
             hoveredItemId = 0;
             needsDraw = false;
@@ -78,10 +86,10 @@ public sealed class TooltipHook : IDisposable
 
         needsDraw = true;
         dataReady = false;
-        FetchPricesForItem(hoveredItemId);
+        FetchPricesForItem(hoveredItemId, token);
     }
 
-    private void FetchPricesForItem(uint itemId)
+    private void FetchPricesForItem(uint itemId, CancellationToken token = default)
     {
         var recipes = recipeCache.GetRecipesForItem(itemId);
         if (recipes.Count == 0) return;
@@ -119,9 +127,13 @@ public sealed class TooltipHook : IDisposable
 #pragma warning disable CS4014
         _ = Task.Run(async () =>
         {
+            if (token.IsCancellationRequested) return;
+
             try
             {
                 var results = await universalisClient.FetchPrices(worldId, toFetch, ttl);
+                token.ThrowIfCancellationRequested();
+
                 foreach (var kvp in results)
                 {
                     var p = kvp.Value;
@@ -129,19 +141,26 @@ public sealed class TooltipHook : IDisposable
                         TimeSpan.FromMinutes(ttl));
                 }
             }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
             catch (Exception ex)
             {
-                log.Warning(ex, "Tooltip price fetch failed");
+                if (!token.IsCancellationRequested)
+                    log.Warning(ex, "Tooltip price fetch failed");
                 foreach (var id in toFetch)
                     priceCache.Set(id, 0, 0, "failed", TimeSpan.FromMinutes(1));
             }
 
+            if (token.IsCancellationRequested) return;
+
             framework.RunOnFrameworkThread(() =>
             {
-                if (hoveredItemId == itemId && needsDraw)
+                if (!token.IsCancellationRequested && hoveredItemId == itemId && needsDraw)
                     ComputeTooltipData(itemId);
             });
-        });
+        }, token);
 #pragma warning restore CS4014
     }
 
@@ -257,6 +276,8 @@ public sealed class TooltipHook : IDisposable
 
     public void Dispose()
     {
+        hoverCts?.Cancel();
+        hoverCts?.Dispose();
         gameGui.HoveredItemChanged -= OnHoveredItemChanged;
     }
 }

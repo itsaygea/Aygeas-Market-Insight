@@ -41,11 +41,6 @@ public sealed class PluginUI : IDisposable
         pluginInterface.UiBuilder.Draw += windowSystem.Draw;
     }
 
-    public void Draw()
-    {
-        // WindowSystem.Draw is wired to UiBuilder.Draw in constructor.
-    }
-
     public void ToggleScannerWindow() => scannerWindow.IsOpen = !scannerWindow.IsOpen;
     public void ToggleShoppingListWindow() => shoppingListWindow.IsOpen = !shoppingListWindow.IsOpen;
     public void ToggleConfigWindow() => configWindow.IsOpen = !configWindow.IsOpen;

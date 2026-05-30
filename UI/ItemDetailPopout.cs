@@ -133,7 +133,6 @@ public sealed class ItemDetailPopout : Window
             mbPrice = showHq ? (pinned.HqSnapshot > 0 ? pinned.HqSnapshot : pinned.MbPriceRaw) : pinned.MbPriceRaw;
         uint mbAfterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
 
-        // Recalculate craft cost with live prices
         var recipe = recipeCache.GetRecipe(pinned.RecipeId);
         uint craftCost = 0;
         List<RecipeCache.IngredientCost> breakdown = [];
