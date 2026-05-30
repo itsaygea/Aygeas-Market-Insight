@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="./AygeaMarketInsight.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="./icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

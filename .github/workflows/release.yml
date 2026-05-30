@@ -39,6 +39,7 @@ jobs:
           cp bin/Release/net10.0-windows/AygeaMarketInsight.dll staging/
           cp bin/Release/net10.0-windows/AygeaMarketInsight.json staging/
           cp bin/Release/net10.0-windows/AygeaMarketInsight.pdb staging/
+          cp bin/Release/net10.0-windows/icon.png staging/
           cd staging && 7z a ../latest.zip ./*
 
       - name: Create GitHub Release

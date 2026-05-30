@@ -10,6 +10,6 @@
   "DalamudApiLevel": 15,
   "Tags": [ "market", "crafting", "profit", "tooltip", "shopping list", "universalis" ],
   "ImageUrls": [],
-  "IconUrl": "",
+  "IconUrl": "https://raw.githubusercontent.com/itsaygea/Aygeas-Market-Insight/main/icon.png",
   "Changelog": "Initial release."
 }
