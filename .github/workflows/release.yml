@@ -2,6 +2,7 @@ name: Build and Release
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -9,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: windows-latest
     env:
       DALAMUD_HOME: ${{ github.workspace }}/dalamud
@@ -31,6 +32,7 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: Package
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           mkdir -p staging
@@ -40,6 +42,7 @@ jobs:
           cd staging && 7z a ../latest.zip ./*
 
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: latest.zip
