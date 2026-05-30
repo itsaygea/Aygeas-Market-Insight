@@ -7,17 +7,21 @@ A crafting profit and market price tool for **Final Fantasy XIV**. Compare craft
 ## Features
 
 - **Tooltip Augmentation** — Hover any craftable item to see craft cost, MB price, and profit/loss with color coding
-- **Profit Scanner** — Sortable, filterable recipe browser with job filters, iLvl thresholds, and min profit settings
-- **Shopping List** — Pin recipes to a persistent overlay with full ingredient breakdown and max-price guidance (the most you can pay per ingredient while staying profitable)
-- **Artisan Integration** — Optional auto-detected IPC integration with Artisan. If Artisan is installed, "Add to Artisan" buttons appear automatically
+- **Profit Scanner** — Sortable, filterable recipe browser with job filters, iLvl thresholds, min profit settings, and progressive price loading from Universalis
+- **Shopping List** — Pin recipes to a persistent overlay with full ingredient breakdown, max-price guidance (the most you can pay per ingredient while staying profitable), and clipboard export
+- **Sub-Craft Breakdown** — When a material is cheaper to craft than buy, the shopping list and item details show the sub-ingredients needed instead of the market price
+- **Price Cache** — Prices persist between sessions so the scanner shows data instantly on open, then refreshes in the background
+- **Artisan Integration** — Optional auto-detected IPC integration with Artisan. If Artisan is installed, "Send to Artisan" buttons appear automatically
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/ami` | Open/close the Profit Scanner |
-| `/ami list` | Open/close the Shopping List |
+| `/ami` | Open/close Settings |
+| `/ami scan` | Open/close the Profit Scanner |
+| `/ami list` or `/ami sl` | Open/close the Shopping List |
 | `/ami config` | Open/close Settings |
+| `/ami detail` | Open/close Item Detail Popout |
 
 ## Installation
 
