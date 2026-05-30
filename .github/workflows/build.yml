@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      DALAMUD_HOME: ${{ github.workspace }}/dalamud
     steps:
       - uses: actions/checkout@v4
 
@@ -16,6 +18,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+
+      - name: Download Dalamud
+        shell: bash
+        run: |
+          curl -sL https://goatcorp.github.io/dalamud-distrib/latest.zip -o dalamud.zip
+          unzip dalamud.zip -d "$DALAMUD_HOME"
 
       - name: Restore dependencies
         run: dotnet restore
