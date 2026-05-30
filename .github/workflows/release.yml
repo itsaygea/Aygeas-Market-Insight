@@ -36,10 +36,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p staging
-          cp bin/Release/net10.0-windows/AygeaMarketInsight.dll staging/
-          cp bin/Release/net10.0-windows/AygeaMarketInsight.json staging/
-          cp bin/Release/net10.0-windows/AygeaMarketInsight.pdb staging/
-          cp bin/Release/net10.0-windows/icon.png staging/
+          cp bin/Release/AygeaMarketInsight.dll staging/
+          cp bin/Release/AygeaMarketInsight.json staging/
+          cp bin/Release/AygeaMarketInsight.pdb staging/
+          cp bin/Release/icon.png staging/
           cd staging && 7z a ../latest.zip ./*
 
       - name: Create GitHub Release
