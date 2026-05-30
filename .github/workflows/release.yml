@@ -38,7 +38,6 @@ jobs:
           mkdir -p staging
           cp bin/Release/AygeaMarketInsight.dll staging/
           cp bin/Release/AygeaMarketInsight.json staging/
-          cp bin/Release/AygeaMarketInsight.pdb staging/
           cp bin/Release/icon.png staging/
           cd staging && 7z a ../latest.zip ./*
 
