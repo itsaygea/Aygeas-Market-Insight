@@ -20,6 +20,17 @@ public sealed class ShoppingListWindow : Window
 
     private bool showConfirmClear;
 
+    private sealed class CachedRecipeCalc
+    {
+        public uint CraftCost;
+        public List<RecipeCache.IngredientCost> Breakdown = [];
+        public long TotalMaterialCost;
+        public DateTime CachedAt;
+    }
+
+    private readonly Dictionary<uint, CachedRecipeCalc> craftCalcCache = [];
+    private static readonly TimeSpan CraftCalcCacheDuration = TimeSpan.FromSeconds(2);
+
     public ShoppingListWindow(
         Configuration config,
         RecipeCache recipeCache,
@@ -82,29 +93,39 @@ public sealed class ShoppingListWindow : Window
         var r = recipe.Value;
 
         // Calculate prices for this recipe
-        var cached = priceCache.Get(entry.ResultItemId);
-        var nqPrice = cached?.NqPrice ?? 0;
-        var hqPrice = cached?.HqPrice ?? 0;
+        var priceData = priceCache.Get(entry.ResultItemId);
+        var nqPrice = priceData?.NqPrice ?? 0;
+        var hqPrice = priceData?.HqPrice ?? 0;
 
-        // Auto-toggle quality if only one is available
+        // Auto-toggle quality if only one is available (no save — user action saves later)
         if (nqPrice == 0 && hqPrice > 0 && !entry.SellAsHq)
-        {
             entry.SellAsHq = true;
-            config.Save();
-        }
         else if (hqPrice == 0 && nqPrice > 0 && entry.SellAsHq)
-        {
             entry.SellAsHq = false;
-            config.Save();
-        }
 
         var mbPrice = entry.SellAsHq ? hqPrice : nqPrice;
         var afterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
         var budget = (uint)(afterTax * (1f - config.TargetProfitMargin));
 
-        var craftCost = recipeCache.CalculateCraftCost(r, priceCache, out var breakdown);
+        // Use cached craft cost calculation to avoid per-frame recursion
+        if (!craftCalcCache.TryGetValue(entry.RecipeId, out var cached) ||
+            (DateTime.UtcNow - cached.CachedAt) > CraftCalcCacheDuration)
+        {
+            var cost = recipeCache.CalculateCraftCost(r, priceCache, out var bd);
+            var matCost = bd.Sum(b => (long)b.CostPerUnit * b.Quantity);
+            craftCalcCache[entry.RecipeId] = cached = new CachedRecipeCalc
+            {
+                CraftCost = cost,
+                Breakdown = bd,
+                TotalMaterialCost = matCost,
+                CachedAt = DateTime.UtcNow,
+            };
+        }
+
+        var craftCost = cached.CraftCost;
+        var breakdown = cached.Breakdown;
+        var totalMaterialCost = cached.TotalMaterialCost;
         var profit = (int)(afterTax - craftCost);
-        var totalMaterialCost = breakdown.Sum(b => (long)b.CostPerUnit * b.Quantity);
 
         // Header line: recipe name + quantity controls + profit + remove
         var headerLabel = $"  {entry.RecipeName}###recipe_{entry.RecipeId}";
@@ -192,32 +213,11 @@ public sealed class ShoppingListWindow : Window
                     var isVendorItem = ing.Source == "Vendor";
                     var bestPrice = ing.CostPerUnit;
 
-                    // Max price only applies to MB-sourced items
+                    // Max price only applies to MB-sourced items — O(1) using pre-computed total
                     uint maxPrice = 0;
                     if (!isVendorItem && ing.Source != "Craft" && budget > 0 && qty > 0)
                     {
-                        uint otherCosts = 0;
-                        for (int j = 0; j < 8; j++)
-                        {
-                            var otherAmount = (int)r.AmountIngredient[j];
-                            var otherItemId = r.Ingredient[j].RowId;
-                            if (otherAmount <= 0 || otherItemId == 0 || otherItemId == ing.ItemId)
-                                continue;
-
-                            var otherVendor = recipeCache.GetVendorPrice(otherItemId);
-                            var otherCached = priceCache.Get(otherItemId);
-                            var otherMb = otherCached?.NqPrice ?? 0;
-                            uint otherBest = 0;
-                            if (otherVendor > 0 && (otherMb == 0 || otherVendor <= otherMb))
-                                otherBest = otherVendor;
-                            else if (otherMb > 0)
-                                otherBest = otherMb;
-                            else
-                                otherBest = otherVendor;
-
-                            otherCosts += otherBest * (uint)otherAmount * (uint)entry.Quantity;
-                        }
-
+                        var otherCosts = (uint)Math.Max(0, totalMaterialCost * entry.Quantity - (long)ing.CostPerUnit * ing.Quantity * entry.Quantity);
                         var remaining = budget > otherCosts ? budget - otherCosts : 0;
                         maxPrice = remaining / (uint)qty;
                     }
