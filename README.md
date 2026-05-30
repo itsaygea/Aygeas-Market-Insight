@@ -26,7 +26,7 @@ A crafting profit and market price tool for **Final Fantasy XIV**. Compare craft
 Add the following URL to your Dalamud plugin repositories in `/xlsettings → Experimental`:
 
 ```
-https://raw.githubusercontent.com/itsaygea/Aygea-Market-Insight/main/repo.json
+https://raw.githubusercontent.com/itsaygea/DalamudPlugins/main/repo.json
 ```
 
 ### Dev Install
