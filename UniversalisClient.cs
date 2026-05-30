@@ -58,7 +58,8 @@ public sealed class UniversalisClient : IDisposable
                 var response = await http.GetAsync(url).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
-                    log.Warning($"Universalis aggregated API returned {response.StatusCode}");
+                    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    log.Warning($"Universalis aggregated API returned {response.StatusCode} for {url}: {(body.Length > 200 ? body[..200] : body)}");
                     continue;
                 }
 
