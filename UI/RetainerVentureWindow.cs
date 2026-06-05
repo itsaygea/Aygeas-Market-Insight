@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
@@ -18,22 +19,41 @@ public sealed class RetainerVentureWindow : Window
     private readonly IFramework framework;
     private readonly IPluginLog log;
 
+    // Targeted tab state
     private List<VentureRow> rows = [];
     private bool isLoading;
     private string loadingStatus = string.Empty;
     private DateTime lastRefreshTime;
 
-    // Filters
+    // Targeted filters
     private readonly HashSet<VentureType> enabledTypes = [VentureType.Combat, VentureType.Botanist, VentureType.Miner, VentureType.Fisher];
     private int levelFilter = 100;
     private int minGilPerHour;
 
     // Sorting
     private ImGuiSortDirection sortDirection;
-    private int sortColumn = 7; // Gil/Hr by default
+    private int sortColumn = 7;
+
+    // Tab state
+    private int currentTab;
+
+    // Exploration tab state
+    private int selectedExploration = -1;
+    private string explorationSearch = string.Empty;
+    private readonly HashSet<ExplorationType> enabledExplorationTypes =
+        [ExplorationType.Quick, ExplorationType.Highland, ExplorationType.Field, ExplorationType.Waterside];
+    private int explorationLevelFilter = 100;
+    private List<ExplorationVenture> filteredExplorations = [];
+    private List<(uint ItemId, string Name, uint Price)> selectedDrops = [];
 
     private static readonly (string Name, VentureType Type)[] TypeToggles =
         [("Combat", VentureType.Combat), ("BTN", VentureType.Botanist), ("MIN", VentureType.Miner), ("FSH", VentureType.Fisher)];
+
+    private static readonly (string Name, ExplorationType Type)[] ExplorationTypeToggles =
+        [("Quick", ExplorationType.Quick), ("Highland", ExplorationType.Highland), ("Field", ExplorationType.Field), ("Waterside", ExplorationType.Waterside)];
+
+    private static readonly Vector4 TabActiveColor = new(0.3f, 0.6f, 0.3f, 1f);
+    private static readonly Vector4 TabInactiveColor = new(0.25f, 0.25f, 0.25f, 1f);
 
     public RetainerVentureWindow(
         Configuration config,
@@ -53,7 +73,7 @@ public sealed class RetainerVentureWindow : Window
         this.framework = framework;
         this.log = log;
 
-        Size = new System.Numerics.Vector2(800, 500);
+        Size = new Vector2(900, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 
@@ -65,11 +85,43 @@ public sealed class RetainerVentureWindow : Window
         if (!isLoading && (lastRefreshTime == default ||
             (DateTime.UtcNow - lastRefreshTime).TotalMinutes > config.UniversalisCacheTtlMinutes))
             RefreshPrices();
+
+        if (filteredExplorations.Count == 0)
+            BuildExplorationRows();
     }
 
     public override void Draw()
     {
-        DrawControls();
+        DrawTabBar();
+
+        if (currentTab == 0)
+            DrawTargetedTab();
+        else
+            DrawExplorationTab();
+    }
+
+    private void DrawTabBar()
+    {
+        DrawTabButton("Targeted", 0);
+        ImGui.SameLine();
+        DrawTabButton("Explorations", 1);
+        ImGui.Separator();
+    }
+
+    private void DrawTabButton(string label, int tab)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Button, currentTab == tab ? TabActiveColor : TabInactiveColor);
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, TabActiveColor with { X = TabActiveColor.X + 0.1f, Y = TabActiveColor.Y + 0.1f });
+        if (ImGui.Button($"  {label}  "))
+            currentTab = tab;
+        ImGui.PopStyleColor(2);
+    }
+
+    // ── Targeted Tab ──────────────────────────────────────────────
+
+    private void DrawTargetedTab()
+    {
+        DrawTargetedControls();
 
         if (isLoading)
         {
@@ -79,28 +131,28 @@ public sealed class RetainerVentureWindow : Window
                 ImGui.TextDisabled($"Loading prices... {loadingStatus}");
         }
 
-        DrawTable();
+        DrawTargetedTable();
 
         var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
         ImGui.TextDisabled($"Last refreshed: {ago}  |  {rows.Count} ventures");
 
         ImGui.SameLine();
-        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
+        ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
         if (ImGui.IsItemHovered())
         {
             ImGui.BeginTooltip();
             ImGui.Text("Color highlights:");
-            ImGui.TextColored(new System.Numerics.Vector4(0f, 0.8f, 0f, 1f), "  Green");
+            ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green");
             ImGui.SameLine();
             ImGui.TextUnformatted("— Highest Gil/Hr venture");
-            ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
+            ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
             ImGui.SameLine();
             ImGui.TextUnformatted("— Highest XP reward");
             ImGui.EndTooltip();
         }
     }
 
-    private void DrawControls()
+    private void DrawTargetedControls()
     {
         if (ImGui.Button("Refresh Prices"))
             RefreshPrices();
@@ -114,13 +166,12 @@ public sealed class RetainerVentureWindow : Window
         ImGui.SetNextItemWidth(120);
         ImGui.InputInt("Min Gil/Hr", ref minGilPerHour, 100);
 
-        // Toggle buttons for venture types
         ImGui.Spacing();
         foreach (var (name, type) in TypeToggles)
         {
             var enabled = enabledTypes.Contains(type);
             ImGui.PushStyleColor(ImGuiCol.Button,
-                enabled ? new System.Numerics.Vector4(0.3f, 0.6f, 0.3f, 1f) : new System.Numerics.Vector4(0.3f, 0.3f, 0.3f, 1f));
+                enabled ? new Vector4(0.3f, 0.6f, 0.3f, 1f) : new Vector4(0.3f, 0.3f, 0.3f, 1f));
 
             if (ImGui.SmallButton(name))
             {
@@ -136,7 +187,7 @@ public sealed class RetainerVentureWindow : Window
         ImGui.NewLine();
     }
 
-    private void DrawTable()
+    private void DrawTargetedTable()
     {
         var filteredRows = GetFilteredRows();
 
@@ -169,7 +220,6 @@ public sealed class RetainerVentureWindow : Window
             sorts.SpecsDirty = false;
         }
 
-        // Find best values for highlighting
         var bestGilHr = filteredRows.Count > 0 ? filteredRows.Max(r => r.GilPerHour) : 0;
         var bestXp = filteredRows.Count > 0 ? filteredRows.Max(r => r.XpReward) : 0;
 
@@ -191,7 +241,7 @@ public sealed class RetainerVentureWindow : Window
 
             ImGui.TableSetColumnIndex(4);
             if (row.XpReward == bestXp && bestXp > 0)
-                ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.6f, 1f, 1f), $"{row.XpReward:N0}");
+                ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), $"{row.XpReward:N0}");
             else
                 ImGui.Text($"{row.XpReward:N0}");
 
@@ -203,7 +253,7 @@ public sealed class RetainerVentureWindow : Window
 
             ImGui.TableSetColumnIndex(7);
             if (row.GilPerHour == bestGilHr && bestGilHr > 0)
-                ImGui.TextColored(new System.Numerics.Vector4(0f, 0.8f, 0f, 1f), $"{row.GilPerHour:N0}");
+                ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), $"{row.GilPerHour:N0}");
             else if (row.GilPerHour > 0)
                 ImGui.Text($"{row.GilPerHour:N0}");
             else
@@ -223,7 +273,6 @@ public sealed class RetainerVentureWindow : Window
         if (minGilPerHour > 0)
             query = query.Where(r => r.GilPerHour >= minGilPerHour);
 
-        // Apply sorting
         query = sortDirection == ImGuiSortDirection.Ascending
             ? sortColumn switch
             {
@@ -254,6 +303,178 @@ public sealed class RetainerVentureWindow : Window
 
         return query.ToList();
     }
+
+    // ── Exploration Tab ────────────────────────────────────────────
+
+    private void DrawExplorationTab()
+    {
+        DrawExplorationControls();
+        DrawExplorationSplit();
+    }
+
+    private void DrawExplorationControls()
+    {
+        ImGui.SetNextItemWidth(200);
+        if (ImGui.InputTextWithHint("##ExplorationSearch", "Search drops (minion, material...)", ref explorationSearch, 100))
+            BuildExplorationRows();
+
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(100);
+        if (ImGui.SliderInt("Max Level##Ex", ref explorationLevelFilter, 1, 100))
+            BuildExplorationRows();
+
+        ImGui.SameLine();
+        ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.BeginTooltip();
+            ImGui.Text("Search filters by drop item names.");
+            ImGui.Text("Click a venture row to see its drops below.");
+            ImGui.EndTooltip();
+        }
+
+        ImGui.Spacing();
+        foreach (var (name, type) in ExplorationTypeToggles)
+        {
+            var enabled = enabledExplorationTypes.Contains(type);
+            ImGui.PushStyleColor(ImGuiCol.Button,
+                enabled ? new Vector4(0.3f, 0.6f, 0.3f, 1f) : new Vector4(0.3f, 0.3f, 0.3f, 1f));
+
+            if (ImGui.SmallButton($"{name}##ex"))
+            {
+                if (enabled) enabledExplorationTypes.Remove(type);
+                else enabledExplorationTypes.Add(type);
+                BuildExplorationRows();
+            }
+
+            ImGui.PopStyleColor();
+            ImGui.SameLine();
+        }
+
+        ImGui.NewLine();
+    }
+
+    private void DrawExplorationSplit()
+    {
+        var avail = ImGui.GetContentRegionAvail();
+        var tableHeight = selectedExploration >= 0 ? avail.Y * 0.5f : avail.Y - 5;
+
+        // Venture table (top half)
+        var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
+                    ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.Resizable |
+                    ImGuiTableFlags.SizingFixedFit;
+
+        if (ImGui.BeginTable("ExplorationTable", 6, flags,
+            new Vector2(avail.X, tableHeight)))
+        {
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("Type", 70);
+            ImGui.TableSetupColumn("Lv", 40);
+            ImGui.TableSetupColumn("Duration", 65);
+            ImGui.TableSetupColumn("XP", 60);
+            ImGui.TableSetupColumn("Drops", 50);
+            ImGui.TableSetupScrollFreeze(0, 1);
+            ImGui.TableHeadersRow();
+
+            for (var i = 0; i < filteredExplorations.Count; i++)
+            {
+                var ex = filteredExplorations[i];
+                ImGui.TableNextRow();
+
+                var isSelected = i == selectedExploration;
+                if (isSelected)
+                {
+                    var tableFlags2 = ImGuiTableFlags.None;
+                    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0,
+                        ImGui.ColorConvertFloat4ToU32(new Vector4(0.2f, 0.4f, 0.2f, 0.4f)));
+                }
+
+                ImGui.TableSetColumnIndex(0);
+                if (ImGui.Selectable($"##ex{i}", isSelected, ImGuiSelectableFlags.SpanAllColumns))
+                {
+                    selectedExploration = isSelected ? -1 : i;
+                    if (selectedExploration >= 0)
+                        BuildSelectedDrops();
+                }
+                ImGui.SameLine();
+                ImGui.Text(ex.Name);
+
+                ImGui.TableSetColumnIndex(1);
+                ImGui.Text(ex.ExplorationType.ToString());
+
+                ImGui.TableSetColumnIndex(2);
+                ImGui.Text($"{ex.MaxLevel}");
+
+                ImGui.TableSetColumnIndex(3);
+                ImGui.Text(ex.DurationMinutes > 0 ? $"{ex.DurationMinutes / 60f:F1}h" : "—");
+
+                ImGui.TableSetColumnIndex(4);
+                ImGui.Text(ex.XpReward > 0 ? $"{ex.XpReward:N0}" : "—");
+
+                ImGui.TableSetColumnIndex(5);
+                ImGui.Text($"{ex.DropItemIds.Count}");
+            }
+
+            ImGui.EndTable();
+        }
+
+        // Drops panel (bottom half)
+        if (selectedExploration >= 0 && selectedExploration < filteredExplorations.Count)
+        {
+            var ex = filteredExplorations[selectedExploration];
+            ImGui.Separator();
+            ImGui.Text($"Drops from: {ex.Name}");
+            ImGui.SameLine();
+            ImGui.TextDisabled($"({selectedDrops.Count} items)");
+
+            DrawDropsTable(avail);
+        }
+    }
+
+    private void DrawDropsTable(Vector2 avail)
+    {
+        if (!ImGui.BeginTable("DropsTable", 3,
+            ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV,
+            new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 5)))
+            return;
+
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("MB Price", 90);
+        ImGui.TableSetupColumn("Source", 90);
+        ImGui.TableSetupScrollFreeze(0, 1);
+        ImGui.TableHeadersRow();
+
+        var maxPrice = selectedDrops.Count > 0 ? selectedDrops.Max(d => d.Price) : 0;
+
+        foreach (var drop in selectedDrops.OrderByDescending(d => d.Price))
+        {
+            ImGui.TableNextRow();
+
+            ImGui.TableSetColumnIndex(0);
+            ImGui.Text(drop.Name);
+
+            ImGui.TableSetColumnIndex(1);
+            if (drop.Price > 0)
+            {
+                if (drop.Price == maxPrice && maxPrice > 0)
+                    ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), $"{drop.Price:N0}");
+                else
+                    ImGui.Text($"{drop.Price:N0}");
+            }
+            else
+            {
+                ImGui.TextDisabled("—");
+            }
+
+            ImGui.TableSetColumnIndex(2);
+            var cached = priceCache.GetIgnoreExpiry(drop.ItemId);
+            ImGui.TextDisabled(cached?.Source ?? "—");
+        }
+
+        ImGui.EndTable();
+    }
+
+    // ── Data Building ──────────────────────────────────────────────
 
     private void BuildRows()
     {
@@ -293,6 +514,50 @@ public sealed class RetainerVentureWindow : Window
         }
     }
 
+    private void BuildExplorationRows()
+    {
+        var query = ventureCache.Explorations.AsEnumerable();
+
+        // Filter by type
+        query = query.Where(e => enabledExplorationTypes.Contains(e.ExplorationType));
+
+        // Filter by level
+        if (explorationLevelFilter < 100)
+            query = query.Where(e => e.MaxLevel <= explorationLevelFilter);
+
+        // Search filter — match against drop item names
+        if (!string.IsNullOrWhiteSpace(explorationSearch))
+        {
+            var search = explorationSearch.Trim().ToLowerInvariant();
+            query = query.Where(e =>
+                e.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                e.DropItemIds.Any(id =>
+                {
+                    var name = ventureCache.GetItemName(id);
+                    return name != null && name.Contains(search, StringComparison.OrdinalIgnoreCase);
+                }));
+        }
+
+        filteredExplorations = query.OrderBy(e => e.ExplorationType).ThenBy(e => e.Name).ToList();
+        selectedExploration = -1;
+        selectedDrops.Clear();
+    }
+
+    private void BuildSelectedDrops()
+    {
+        selectedDrops.Clear();
+        if (selectedExploration < 0 || selectedExploration >= filteredExplorations.Count) return;
+
+        var ex = filteredExplorations[selectedExploration];
+        foreach (var itemId in ex.DropItemIds)
+        {
+            var name = ventureCache.GetItemName(itemId) ?? $"Item #{itemId}";
+            var cached = priceCache.GetIgnoreExpiry(itemId);
+            var price = cached?.NqPrice ?? 0;
+            selectedDrops.Add((itemId, name, price));
+        }
+    }
+
     private void RefreshPrices()
     {
         if (isLoading) return;
@@ -304,6 +569,11 @@ public sealed class RetainerVentureWindow : Window
         loadingStatus = "collecting items...";
 
         var itemIds = ventureCache.Ventures.Select(v => v.ItemId).Distinct().ToHashSet();
+
+        // Also include exploration drop items
+        foreach (var ex in ventureCache.Explorations)
+            foreach (var dropId in ex.DropItemIds)
+                itemIds.Add(dropId);
 
 #pragma warning disable CS4014
         _ = Task.Run(async () =>
@@ -326,6 +596,8 @@ public sealed class RetainerVentureWindow : Window
                     }
 
                     BuildRows();
+                    if (selectedExploration >= 0)
+                        BuildSelectedDrops();
                     lastRefreshTime = DateTime.UtcNow;
                     isLoading = false;
                     loadingStatus = string.Empty;

@@ -1,6 +1,6 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>1.0.3.6</Version>
+    <Version>1.0.3.7</Version>
     <Description>Crafting profit tracker — compare craft cost vs market price, scan for profitable recipes, and build shopping lists with max-price guidance.</Description>
     <PackageProjectUrl>https://github.com/itsaygea/Aygeas-Market-Insight</PackageProjectUrl>
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
@@ -9,5 +9,6 @@
   <ItemGroup>
     <None Include="./AygeaMarketInsight.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="./icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Data/retainer_venture_items.csv" />
   </ItemGroup>
 </Project>
