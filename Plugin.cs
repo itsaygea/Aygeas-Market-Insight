@@ -87,7 +87,7 @@ public sealed class Plugin : IDalamudPlugin
         var itemDetailPopout = new ItemDetailPopout(recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
 
         var retainerWindow = new RetainerVentureWindow(
-            config, ventureCache, priceCache, universalisClient, objectTable, framework, log, sharedRefresh);
+            config, ventureCache, priceCache, universalisClient, objectTable, framework, notificationManager, log, sharedRefresh);
 
         var hubWindow = new HubWindow(config);
 

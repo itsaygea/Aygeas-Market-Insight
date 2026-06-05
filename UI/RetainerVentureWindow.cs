@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
+using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
@@ -17,6 +18,7 @@ public sealed class RetainerVentureWindow : Window
     private readonly UniversalisClient universalisClient;
     private readonly IObjectTable objectTable;
     private readonly IFramework framework;
+    private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
     private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
 
@@ -63,6 +65,7 @@ public sealed class RetainerVentureWindow : Window
         UniversalisClient universalisClient,
         IObjectTable objectTable,
         IFramework framework,
+        INotificationManager notificationManager,
         IPluginLog log,
         System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Retainer Ventures###AMIRetainer")
@@ -73,6 +76,7 @@ public sealed class RetainerVentureWindow : Window
         this.universalisClient = universalisClient;
         this.objectTable = objectTable;
         this.framework = framework;
+        this.notificationManager = notificationManager;
         this.log = log;
         this.refreshAll = refreshAll;
 
@@ -113,9 +117,22 @@ public sealed class RetainerVentureWindow : Window
         else
             DrawExplorationTab();
 
-        // Shared status bar
+        // Shared status bar with data source info
         var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
-        ImGui.TextDisabled($"Last refreshed: {ago}  |  {ventureCache.Ventures.Count} ventures, {ventureCache.Explorations.Count} explorations");
+        var source = "—";
+        if (lastRefreshTime != default)
+            source = "Universalis";
+        // Check if any MB live data is present
+        var mbCount = 0; var apiCount = 0; var cachedCount = 0;
+        foreach (var v in ventureCache.Ventures)
+        {
+            var p = priceCache.Get(v.ItemId);
+            if (p == null) { var pi = priceCache.GetIgnoreExpiry(v.ItemId); if (pi != null) cachedCount++; continue; }
+            if (p.Source == "MB") mbCount++; else apiCount++;
+        }
+        if (mbCount > 0 || apiCount > 0 || cachedCount > 0)
+            source = $"{apiCount} API" + (mbCount > 0 ? $", {mbCount} MB live" : "") + (cachedCount > 0 ? $", {cachedCount} expired" : "");
+        ImGui.TextDisabled($"Last refreshed: {ago}  |  Source: {source}  |  {ventureCache.Ventures.Count} ventures, {ventureCache.Explorations.Count} explorations");
     }
 
     private void DrawTabBar()
@@ -230,7 +247,15 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableSetColumnIndex(0);
             ImGui.Text(row.ItemName);
             if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
                 ImGui.SetClipboardText(row.ItemName);
+                notificationManager.AddNotification(new Notification
+                {
+                    Content = row.ItemName,
+                    Title = "Copied to clipboard",
+                    Type = NotificationType.Success,
+                });
+            }
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Double-click to copy");
 
@@ -411,8 +436,7 @@ public sealed class RetainerVentureWindow : Window
                 {
                     var cached = priceCache.GetIgnoreExpiry(dropId);
                     var p = cached?.NqPrice ?? 0;
-                    var vel = cached?.NqSaleVelocity ?? 0;
-                    if (p > maxP && vel > 0) maxP = p;
+                    if (p > maxP) maxP = p;
                 }
                 bestPrices[i] = maxP;
             }
@@ -521,7 +545,7 @@ public sealed class RetainerVentureWindow : Window
         if (!ImGui.BeginTable("DropsTable", 3,
             ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
             ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp,
-            new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 5)))
+            new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 30)))
             return;
 
         ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 5f);
@@ -547,7 +571,15 @@ public sealed class RetainerVentureWindow : Window
             else
                 ImGui.Text(drop.Name);
             if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
                 ImGui.SetClipboardText(drop.Name);
+                notificationManager.AddNotification(new Notification
+                {
+                    Content = drop.Name,
+                    Title = "Copied to clipboard",
+                    Type = NotificationType.Success,
+                });
+            }
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Double-click to copy");
 
@@ -683,6 +715,7 @@ public sealed class RetainerVentureWindow : Window
             foreach (var dropId in ex.DropItemIds)
                 ids.Add(dropId);
 
+        var fetchCount = ids.Count;
         refreshAll(ids,
             status => loadingStatus = status ?? string.Empty,
             () =>
@@ -693,6 +726,12 @@ public sealed class RetainerVentureWindow : Window
                 lastRefreshTime = DateTime.UtcNow;
                 isLoading = false;
                 loadingStatus = string.Empty;
+                notificationManager.AddNotification(new Notification
+                {
+                    Content = $"Updated prices for {fetchCount} items",
+                    Title = "Prices Refreshed",
+                    Type = NotificationType.Success,
+                });
             });
     }
 }
