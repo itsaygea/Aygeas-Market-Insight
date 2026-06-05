@@ -58,9 +58,8 @@ public sealed class VentureCache
             var itemName = item.Name.ToString();
             if (string.IsNullOrEmpty(itemName)) continue;
 
-            // Use Quantity2 as middle-tier baseline
-            byte quantity = normal.Quantity2;
-            if (quantity == 0) quantity = 1;
+            // TODO: Find correct Lumina property name for Quantity[n] array on RetainerTaskNormal
+            byte quantity = 1;
 
             var type = ClassifyType(task);
 
