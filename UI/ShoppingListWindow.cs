@@ -17,8 +17,11 @@ public sealed class ShoppingListWindow : Window
     private readonly ArtisanIpc artisanIpc;
     private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
+    private readonly System.Action<Action<string>?, Action?> refreshAll;
 
     private bool showConfirmClear;
+    private bool isLoading;
+    private string loadingStatus = string.Empty;
 
     public ShoppingListWindow(
         Configuration config,
@@ -28,7 +31,8 @@ public sealed class ShoppingListWindow : Window
         ArtisanIpc artisanIpc,
         INotificationManager notificationManager,
         IFramework framework,
-        IPluginLog log)
+        IPluginLog log,
+        System.Action<Action<string>?, Action?> refreshAll)
         : base("Aygea's Market Insight — Shopping List###AMIShoppingList")
     {
         this.config = config;
@@ -37,9 +41,46 @@ public sealed class ShoppingListWindow : Window
         this.artisanIpc = artisanIpc;
         this.notificationManager = notificationManager;
         this.log = log;
+        this.refreshAll = refreshAll;
 
         Size = new System.Numerics.Vector2(600, 550);
         SizeCondition = ImGuiCond.FirstUseEver;
+    }
+
+    public override void OnOpen()
+    {
+        // Auto-fetch prices if shopping list has items with missing prices
+        if (config.ShoppingListItems.Count > 0 && !isLoading)
+        {
+            var needsFetch = false;
+            foreach (var entry in config.ShoppingListItems)
+            {
+                if (priceCache.Get(entry.ResultItemId) == null)
+                {
+                    needsFetch = true;
+                    break;
+                }
+            }
+
+            if (needsFetch)
+                RefreshPrices();
+        }
+    }
+
+    private void RefreshPrices()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        loadingStatus = "collecting items...";
+
+        refreshAll(
+            status => loadingStatus = status ?? string.Empty,
+            () =>
+            {
+                isLoading = false;
+                loadingStatus = string.Empty;
+            });
     }
 
     public override void Draw()
@@ -50,6 +91,13 @@ public sealed class ShoppingListWindow : Window
             ImGui.TextDisabled("Right-click a recipe in the Profit Scanner to add items.");
             return;
         }
+
+        if (isLoading)
+            ImGui.TextDisabled($"Refreshing prices... {loadingStatus}");
+
+        ImGui.SameLine();
+        if (ImGui.SmallButton("Refresh Prices##SL"))
+            RefreshPrices();
 
         DrawMarginControl();
         ImGui.Separator();

@@ -36,6 +36,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TooltipHook tooltipHook;
     private readonly string cacheFilePath;
     private DateTime lastCacheSave = DateTime.MinValue;
+    private bool isRefreshingAll;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
@@ -71,17 +72,18 @@ public sealed class Plugin : IDalamudPlugin
 
         // UI
         var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log);
+        Action<Action<string>?, Action?> sharedRefresh = RefreshAllPrices;
         var scannerWindow = new ProfitScannerWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log, sharedRefresh);
         var shoppingListWindow = new ShoppingListWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, notificationManager, framework, log);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, notificationManager, framework, log, sharedRefresh);
 
         tooltipHook = new TooltipHook(
             gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
         var itemDetailPopout = new ItemDetailPopout(recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
 
         var retainerWindow = new RetainerVentureWindow(
-            config, ventureCache, priceCache, universalisClient, objectTable, framework, log);
+            config, ventureCache, priceCache, universalisClient, objectTable, framework, log, sharedRefresh);
 
         var hubWindow = new HubWindow(config);
 
@@ -221,6 +223,109 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         return null;
+    }
+
+    public void RefreshAllPrices(Action<string>? onProgress, Action? onComplete)
+    {
+        if (isRefreshingAll) { onComplete?.Invoke(); return; }
+
+        var worldId = GetWorldId();
+        if (worldId == 0) { onComplete?.Invoke(); return; }
+
+        var allIds = CollectAllItemIds();
+        var staleIds = allIds.Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id)).ToHashSet();
+
+        if (staleIds.Count == 0)
+        {
+            onProgress?.Invoke("All prices up to date");
+            onComplete?.Invoke();
+            return;
+        }
+
+        isRefreshingAll = true;
+        var ttl = config.UniversalisCacheTtlMinutes;
+
+#pragma warning disable CS4014
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                onProgress?.Invoke($"fetching {staleIds.Count} items...");
+
+                var results = await universalisClient.FetchPrices(worldId, staleIds, ttl,
+                    (done, total) => onProgress?.Invoke($"fetching {done}/{total}"));
+
+                framework.RunOnFrameworkThread(() =>
+                {
+                    foreach (var kvp in results)
+                    {
+                        var p = kvp.Value;
+                        priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
+                            TimeSpan.FromMinutes(ttl));
+                    }
+
+                    isRefreshingAll = false;
+                    onComplete?.Invoke();
+                });
+            }
+            catch (Exception ex)
+            {
+                log.Warning(ex, "Shared price refresh failed");
+                framework.RunOnFrameworkThread(() =>
+                {
+                    isRefreshingAll = false;
+                    onComplete?.Invoke();
+                });
+            }
+        });
+#pragma warning restore CS4014
+    }
+
+    private HashSet<uint> CollectAllItemIds()
+    {
+        var ids = new HashSet<uint>();
+
+        // Recipe result items + ingredients
+        foreach (var recipe in recipeCache.GetAllRecipes().Values)
+        {
+            ids.Add(recipe.ItemResult.RowId);
+            for (int i = 0; i < 8; i++)
+            {
+                var amount = (int)recipe.AmountIngredient[i];
+                var itemId = recipe.Ingredient[i].RowId;
+                if (amount > 0 && itemId != 0)
+                    ids.Add(itemId);
+            }
+        }
+
+        // Venture items
+        foreach (var v in ventureCache.Ventures)
+            ids.Add(v.ItemId);
+
+        // Exploration drops
+        foreach (var ex in ventureCache.Explorations)
+            foreach (var dropId in ex.DropItemIds)
+                ids.Add(dropId);
+
+        // Shopping list items + their ingredients
+        foreach (var entry in config.ShoppingListItems)
+        {
+            ids.Add(entry.ResultItemId);
+            var recipe = recipeCache.GetRecipe(entry.RecipeId);
+            if (recipe != null)
+            {
+                var r = recipe.Value;
+                for (int i = 0; i < 8; i++)
+                {
+                    var amount = (int)r.AmountIngredient[i];
+                    var itemId = r.Ingredient[i].RowId;
+                    if (amount > 0 && itemId != 0)
+                        ids.Add(itemId);
+                }
+            }
+        }
+
+        return ids;
     }
 
     public void Dispose()

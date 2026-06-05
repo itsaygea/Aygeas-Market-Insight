@@ -18,6 +18,7 @@ public sealed class RetainerVentureWindow : Window
     private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private readonly System.Action<Action<string>?, Action?> refreshAll;
 
     // Targeted tab state
     private List<VentureRow> rows = [];
@@ -62,7 +63,8 @@ public sealed class RetainerVentureWindow : Window
         UniversalisClient universalisClient,
         IObjectTable objectTable,
         IFramework framework,
-        IPluginLog log)
+        IPluginLog log,
+        System.Action<Action<string>?, Action?> refreshAll)
         : base("Aygea's Market Insight — Retainer Ventures###AMIRetainer")
     {
         this.config = config;
@@ -72,6 +74,7 @@ public sealed class RetainerVentureWindow : Window
         this.objectTable = objectTable;
         this.framework = framework;
         this.log = log;
+        this.refreshAll = refreshAll;
 
         Size = new Vector2(900, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -88,6 +91,17 @@ public sealed class RetainerVentureWindow : Window
 
         if (filteredExplorations.Count == 0)
             BuildExplorationRows();
+    }
+
+    public void RefreshIfStale()
+    {
+        if (IsOpen && !isLoading && (lastRefreshTime == default ||
+            (DateTime.UtcNow - lastRefreshTime).TotalMinutes > config.UniversalisCacheTtlMinutes))
+        {
+            BuildRows();
+            if (selectedExploration >= 0)
+                BuildSelectedDrops();
+        }
     }
 
     public override void Draw()
@@ -562,58 +576,20 @@ public sealed class RetainerVentureWindow : Window
     {
         if (isLoading) return;
 
-        var worldId = config.HomeWorldId > 0 ? config.HomeWorldId : (objectTable.LocalPlayer?.HomeWorld.RowId ?? 0);
-        if (worldId == 0) return;
-
         isLoading = true;
         loadingStatus = "collecting items...";
 
-        var itemIds = ventureCache.Ventures.Select(v => v.ItemId).Distinct().ToHashSet();
-
-        // Also include exploration drop items
-        foreach (var ex in ventureCache.Explorations)
-            foreach (var dropId in ex.DropItemIds)
-                itemIds.Add(dropId);
-
-#pragma warning disable CS4014
-        _ = Task.Run(async () =>
-        {
-            try
+        refreshAll(
+            status => loadingStatus = status ?? string.Empty,
+            () =>
             {
-                var ttl = config.UniversalisCacheTtlMinutes;
-
-                var results = await universalisClient.FetchPrices(worldId, itemIds, ttl,
-                    (done, total) => framework.RunOnFrameworkThread(() =>
-                        loadingStatus = $"fetching {done}/{total}"));
-
-                framework.RunOnFrameworkThread(() =>
-                {
-                    foreach (var kvp in results)
-                    {
-                        var p = kvp.Value;
-                        priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
-                            TimeSpan.FromMinutes(ttl));
-                    }
-
-                    BuildRows();
-                    if (selectedExploration >= 0)
-                        BuildSelectedDrops();
-                    lastRefreshTime = DateTime.UtcNow;
-                    isLoading = false;
-                    loadingStatus = string.Empty;
-                });
-            }
-            catch (Exception ex)
-            {
-                log.Warning(ex, "Venture price refresh failed");
-                framework.RunOnFrameworkThread(() =>
-                {
-                    isLoading = false;
-                    loadingStatus = string.Empty;
-                });
-            }
-        });
-#pragma warning restore CS4014
+                BuildRows();
+                if (selectedExploration >= 0)
+                    BuildSelectedDrops();
+                lastRefreshTime = DateTime.UtcNow;
+                isLoading = false;
+                loadingStatus = string.Empty;
+            });
     }
 }
 

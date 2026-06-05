@@ -45,6 +45,7 @@ public sealed class PluginUI : IDisposable
 
         itemDetailPopout.OnAddToShoppingList = () => shoppingListWindow.IsOpen = true;
         scannerWindow.OnAddToShoppingList = () => shoppingListWindow.IsOpen = true;
+        scannerWindow.OnRefreshComplete = () => retainerWindow.RefreshIfStale();
         scannerWindow.OnOpenItemDetail = data =>
         {
             itemDetailPopout.SetPinnedData(data);

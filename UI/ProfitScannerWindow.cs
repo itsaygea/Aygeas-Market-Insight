@@ -20,11 +20,13 @@ public sealed class ProfitScannerWindow : Window
     private readonly IDataManager dataManager;
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private readonly System.Action<Action<string>?, Action?> refreshAll;
 
     private List<ScannerRow> rows = [];
 
     public System.Action? OnAddToShoppingList { get; set; }
     public System.Action<PinnedItemData>? OnOpenItemDetail { get; set; }
+    public System.Action? OnRefreshComplete { get; set; }
     private bool isLoading;
     private string loadingStatus = string.Empty;
     private DateTime lastRefreshTime;
@@ -62,7 +64,8 @@ public sealed class ProfitScannerWindow : Window
         IObjectTable objectTable,
         IDataManager dataManager,
         IFramework framework,
-        IPluginLog log)
+        IPluginLog log,
+        System.Action<Action<string>?, Action?> refreshAll)
         : base("Aygea's Market Insight — Profit Scanner###AMIScanner")
     {
         this.config = config;
@@ -74,6 +77,7 @@ public sealed class ProfitScannerWindow : Window
         this.dataManager = dataManager;
         this.framework = framework;
         this.log = log;
+        this.refreshAll = refreshAll;
 
         minProfit = config.DefaultMinProfitFilter;
         minIlvl = config.DefaultMinIlvlFilter;
@@ -324,100 +328,45 @@ public sealed class ProfitScannerWindow : Window
         isLoading = true;
         loadingStatus = "collecting items...";
 
-#pragma warning disable CS4014
-        _ = Task.Run(async () =>
-        {
-            try
+        refreshAll(
+            status => loadingStatus = status ?? string.Empty,
+            () =>
             {
-                var ttl = config.UniversalisCacheTtlMinutes;
-
-                // Phase 1: Fetch result item prices only (~8K items)
-                var resultItemIds = new HashSet<uint>();
-                foreach (var recipe in recipeCache.GetAllRecipes().Values)
-                    resultItemIds.Add(recipe.ItemResult.RowId);
-
-                framework.RunOnFrameworkThread(() => loadingStatus = "phase 1/2: fetching sell prices...");
-
-                var resultPrices = await universalisClient.FetchPrices(worldId, resultItemIds, ttl,
-                    (done, total) => framework.RunOnFrameworkThread(() =>
-                        loadingStatus = $"phase 1/2: sell prices {done}/{total}"));
-
-                framework.RunOnFrameworkThread(() =>
-                {
-                    foreach (var kvp in resultPrices)
-                    {
-                        var p = kvp.Value;
-                        priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
-                            TimeSpan.FromMinutes(ttl));
-                    }
-
-                    BuildRows();
-                    lastRefreshTime = DateTime.UtcNow;
-                    loadingStatus = "phase 2/2: fetching ingredient prices...";
-                });
-
-                // Phase 2: Fetch ingredient prices in background
-                var ingredientIds = new HashSet<uint>();
-                foreach (var recipe in recipeCache.GetAllRecipes().Values)
-                {
-                    for (int i = 0; i < 8; i++)
-                    {
-                        var amount = (int)recipe.AmountIngredient[i];
-                        var itemId = recipe.Ingredient[i].RowId;
-                        if (amount > 0 && itemId != 0 && !resultItemIds.Contains(itemId))
-                            ingredientIds.Add(itemId);
-                    }
-                }
-
-                var ingPrices = await universalisClient.FetchPrices(worldId, ingredientIds, ttl,
-                    (done, total) => framework.RunOnFrameworkThread(() =>
-                        loadingStatus = $"phase 2/2: ingredients {done}/{total}"));
-
-                framework.RunOnFrameworkThread(() =>
-                {
-                    foreach (var kvp in ingPrices)
-                    {
-                        var p = kvp.Value;
-                        priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
-                            TimeSpan.FromMinutes(ttl));
-                    }
-
-                    BuildRows();
-                    loadingStatus = "phase 3/3: fetching DC best sell prices...";
-                });
-
-                // Phase 3: Fetch DC best sell prices for result items
+                // Also fetch DC best sell prices for result items
                 var dcName = GetDcName();
                 if (!string.IsNullOrEmpty(dcName))
                 {
-                    var dcResults = await universalisClient.FetchDcBestSellPrices(dcName, resultItemIds);
+                    var resultItemIds = new HashSet<uint>();
+                    foreach (var recipe in recipeCache.GetAllRecipes().Values)
+                        resultItemIds.Add(recipe.ItemResult.RowId);
 
-                    framework.RunOnFrameworkThread(() =>
+#pragma warning disable CS4014
+                    _ = Task.Run(async () =>
                     {
-                        foreach (var kvp in dcResults)
-                            priceCache.UpdateDcBestSell(kvp.Key, kvp.Value.Price, kvp.Value.World);
-                        BuildRows();
+                        try
+                        {
+                            var dcResults = await universalisClient.FetchDcBestSellPrices(dcName, resultItemIds);
+                            framework.RunOnFrameworkThread(() =>
+                            {
+                                foreach (var kvp in dcResults)
+                                    priceCache.UpdateDcBestSell(kvp.Key, kvp.Value.Price, kvp.Value.World);
+                                BuildRows();
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            log.Warning(ex, "DC best sell fetch failed");
+                        }
                     });
+#pragma warning restore CS4014
                 }
 
-                framework.RunOnFrameworkThread(() =>
-                {
-                    lastRefreshTime = DateTime.UtcNow;
-                    isLoading = false;
-                    loadingStatus = string.Empty;
-                });
-            }
-            catch (Exception ex)
-            {
-                log.Warning(ex, "Scanner refresh failed");
-                framework.RunOnFrameworkThread(() =>
-                {
-                    isLoading = false;
-                    loadingStatus = string.Empty;
-                });
-            }
-        });
-#pragma warning restore CS4014
+                BuildRows();
+                lastRefreshTime = DateTime.UtcNow;
+                isLoading = false;
+                loadingStatus = string.Empty;
+                OnRefreshComplete?.Invoke();
+            });
     }
 
     private void BuildRows()
