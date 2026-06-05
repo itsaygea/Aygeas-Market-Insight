@@ -18,7 +18,7 @@ public sealed class RetainerVentureWindow : Window
     private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
-    private readonly System.Action<System.Action<string>?, System.Action?> refreshAll;
+    private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
 
     // Targeted tab state
     private List<VentureRow> rows = [];
@@ -64,7 +64,7 @@ public sealed class RetainerVentureWindow : Window
         IObjectTable objectTable,
         IFramework framework,
         IPluginLog log,
-        System.Action<System.Action<string>?, System.Action?> refreshAll)
+        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Retainer Ventures###AMIRetainer")
     {
         this.config = config;
@@ -665,7 +665,15 @@ public sealed class RetainerVentureWindow : Window
         isLoading = true;
         loadingStatus = "collecting items...";
 
-        refreshAll(
+        // Collect only retainer-relevant IDs: venture items + exploration drops
+        var ids = new HashSet<uint>();
+        foreach (var v in ventureCache.Ventures)
+            ids.Add(v.ItemId);
+        foreach (var ex in ventureCache.Explorations)
+            foreach (var dropId in ex.DropItemIds)
+                ids.Add(dropId);
+
+        refreshAll(ids,
             status => loadingStatus = status ?? string.Empty,
             () =>
             {

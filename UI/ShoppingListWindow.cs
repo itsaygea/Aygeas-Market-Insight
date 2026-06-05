@@ -17,7 +17,7 @@ public sealed class ShoppingListWindow : Window
     private readonly ArtisanIpc artisanIpc;
     private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
-    private readonly System.Action<System.Action<string>?, System.Action?> refreshAll;
+    private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
 
     private bool showConfirmClear;
     private bool isLoading;
@@ -32,7 +32,7 @@ public sealed class ShoppingListWindow : Window
         INotificationManager notificationManager,
         IFramework framework,
         IPluginLog log,
-        System.Action<System.Action<string>?, System.Action?> refreshAll)
+        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Shopping List###AMIShoppingList")
     {
         this.config = config;
@@ -74,7 +74,33 @@ public sealed class ShoppingListWindow : Window
         isLoading = true;
         loadingStatus = "collecting items...";
 
-        refreshAll(
+        // Collect only shopping list items + their ingredients
+        var ids = new HashSet<uint>();
+        foreach (var entry in config.ShoppingListItems)
+        {
+            ids.Add(entry.ResultItemId);
+            var recipe = recipeCache.GetRecipe(entry.RecipeId);
+            if (recipe != null)
+            {
+                var r = recipe.Value;
+                for (int i = 0; i < 8; i++)
+                {
+                    var amount = (int)r.AmountIngredient[i];
+                    var itemId = r.Ingredient[i].RowId;
+                    if (amount > 0 && itemId != 0)
+                        ids.Add(itemId);
+                }
+            }
+        }
+
+        if (ids.Count == 0)
+        {
+            isLoading = false;
+            loadingStatus = string.Empty;
+            return;
+        }
+
+        refreshAll(ids,
             status => loadingStatus = status ?? string.Empty,
             () =>
             {

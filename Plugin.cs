@@ -72,7 +72,7 @@ public sealed class Plugin : IDalamudPlugin
 
         // UI
         var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log);
-        System.Action<System.Action<string>?, System.Action?> sharedRefresh = RefreshAllPrices;
+        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> sharedRefresh = RefreshAllPrices;
         var scannerWindow = new ProfitScannerWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log, sharedRefresh);
         var shoppingListWindow = new ShoppingListWindow(
@@ -225,15 +225,14 @@ public sealed class Plugin : IDalamudPlugin
         return null;
     }
 
-    public void RefreshAllPrices(System.Action<string>? onProgress, System.Action? onComplete)
+    public void RefreshAllPrices(HashSet<uint> itemIds, System.Action<string>? onProgress, System.Action? onComplete)
     {
         if (isRefreshingAll) { onComplete?.Invoke(); return; }
 
         var worldId = GetWorldId();
         if (worldId == 0) { onComplete?.Invoke(); return; }
 
-        var allIds = CollectAllItemIds();
-        var staleIds = allIds.Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id)).ToHashSet();
+        var staleIds = itemIds.Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id)).ToHashSet();
 
         if (staleIds.Count == 0)
         {
@@ -281,53 +280,6 @@ public sealed class Plugin : IDalamudPlugin
             }
         });
 #pragma warning restore CS4014
-    }
-
-    private HashSet<uint> CollectAllItemIds()
-    {
-        var ids = new HashSet<uint>();
-
-        // Recipe result items + ingredients
-        foreach (var recipe in recipeCache.GetAllRecipes().Values)
-        {
-            ids.Add(recipe.ItemResult.RowId);
-            for (int i = 0; i < 8; i++)
-            {
-                var amount = (int)recipe.AmountIngredient[i];
-                var itemId = recipe.Ingredient[i].RowId;
-                if (amount > 0 && itemId != 0)
-                    ids.Add(itemId);
-            }
-        }
-
-        // Venture items
-        foreach (var v in ventureCache.Ventures)
-            ids.Add(v.ItemId);
-
-        // Exploration drops
-        foreach (var ex in ventureCache.Explorations)
-            foreach (var dropId in ex.DropItemIds)
-                ids.Add(dropId);
-
-        // Shopping list items + their ingredients
-        foreach (var entry in config.ShoppingListItems)
-        {
-            ids.Add(entry.ResultItemId);
-            var recipe = recipeCache.GetRecipe(entry.RecipeId);
-            if (recipe != null)
-            {
-                var r = recipe.Value;
-                for (int i = 0; i < 8; i++)
-                {
-                    var amount = (int)r.AmountIngredient[i];
-                    var itemId = r.Ingredient[i].RowId;
-                    if (amount > 0 && itemId != 0)
-                        ids.Add(itemId);
-                }
-            }
-        }
-
-        return ids;
     }
 
     public void Dispose()

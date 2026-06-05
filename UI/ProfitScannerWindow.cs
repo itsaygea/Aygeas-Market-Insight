@@ -20,7 +20,7 @@ public sealed class ProfitScannerWindow : Window
     private readonly IDataManager dataManager;
     private readonly IFramework framework;
     private readonly IPluginLog log;
-    private readonly System.Action<System.Action<string>?, System.Action?> refreshAll;
+    private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
 
     private List<ScannerRow> rows = [];
 
@@ -65,7 +65,7 @@ public sealed class ProfitScannerWindow : Window
         IDataManager dataManager,
         IFramework framework,
         IPluginLog log,
-        System.Action<System.Action<string>?, System.Action?> refreshAll)
+        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Profit Scanner###AMIScanner")
     {
         this.config = config;
@@ -328,7 +328,21 @@ public sealed class ProfitScannerWindow : Window
         isLoading = true;
         loadingStatus = "collecting items...";
 
-        refreshAll(
+        // Collect only scanner-relevant IDs: recipe results + their ingredients
+        var ids = new HashSet<uint>();
+        foreach (var recipe in recipeCache.GetAllRecipes().Values)
+        {
+            ids.Add(recipe.ItemResult.RowId);
+            for (int i = 0; i < 8; i++)
+            {
+                var amount = (int)recipe.AmountIngredient[i];
+                var itemId = recipe.Ingredient[i].RowId;
+                if (amount > 0 && itemId != 0)
+                    ids.Add(itemId);
+            }
+        }
+
+        refreshAll(ids,
             status => loadingStatus = status ?? string.Empty,
             () =>
             {
