@@ -22,8 +22,8 @@ public class Configuration : IPluginConfiguration
     public uint ProfitColor { get; set; } = 0xFF00C800; // ABGR green
     public uint LossColor { get; set; } = 0xFF0000C8;   // ABGR red
 
-    public int MbPriceCacheTtlMinutes { get; set; } = 30;
-    public int UniversalisCacheTtlMinutes { get; set; } = 20;
+    public int MbPriceCacheTtlMinutes { get; set; } = 120;
+    public int UniversalisCacheTtlMinutes { get; set; } = 1440;
 
     // Home world override (0 = auto-detect from player)
     public uint HomeWorldId { get; set; } = 0;

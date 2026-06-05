@@ -40,7 +40,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool isRefreshingAll;
 
     /// <summary>Minimum seconds between refreshes to avoid API abuse.</summary>
-    private const int MinRefreshIntervalSeconds = 30;
+    private const int MinRefreshIntervalSeconds = 120;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
@@ -115,8 +115,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         tooltipHook.Draw();
 
-        // Periodic cache save (every 5 minutes)
-        if ((DateTime.UtcNow - lastCacheSave).TotalMinutes >= 5)
+        // Periodic cache save (every 30 minutes, only if dirty)
+        if ((DateTime.UtcNow - lastCacheSave).TotalMinutes >= 30)
         {
             priceCache.SaveToFile(cacheFilePath);
             lastCacheSave = DateTime.UtcNow;
@@ -278,6 +278,8 @@ public sealed class Plugin : IDalamudPlugin
                             TimeSpan.FromMinutes(ttl));
                     }
 
+                    priceCache.SaveToFile(cacheFilePath);
+                    lastCacheSave = DateTime.UtcNow;
                     isRefreshingAll = false;
                     onComplete?.Invoke();
                 });
