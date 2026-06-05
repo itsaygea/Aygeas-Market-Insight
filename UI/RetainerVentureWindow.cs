@@ -425,9 +425,11 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
 
-            // Pre-calculate best drop price per venture for profit coloring
-            // Only consider items that actually trade (velocity > 0) to exclude
-            // unobtainable legacy items like Explorer's Tunic that have stale prices
+            // Pre-calculate best drop price per venture for profit coloring.
+            // Only consider items with real market activity: price > 0 AND
+            // (velocity > 0 OR seen live on MB). This naturally excludes
+            // discontinued items like Explorer's Tunic that have stale prices
+            // but no actual trading activity.
             var bestPrices = new float[filteredExplorations.Count];
             for (var i = 0; i < filteredExplorations.Count; i++)
             {
@@ -436,7 +438,10 @@ public sealed class RetainerVentureWindow : Window
                 {
                     var cached = priceCache.GetIgnoreExpiry(dropId);
                     var p = cached?.NqPrice ?? 0;
-                    if (p > maxP) maxP = p;
+                    var vel = cached?.NqSaleVelocity ?? 0;
+                    var src = cached?.Source ?? "";
+                    if (p > maxP && (vel > 0 || src == "MB"))
+                        maxP = p;
                 }
                 bestPrices[i] = maxP;
             }
