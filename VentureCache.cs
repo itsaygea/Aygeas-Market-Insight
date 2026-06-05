@@ -50,9 +50,7 @@ public sealed class VentureCache
 
             if (task.Task.RowId == 0) continue;
 
-            var normalRow = normalSheet.GetRow(task.Task.RowId);
-            if (normalRow == null) continue;
-            var normal = normalRow.Value;
+            var normal = normalSheet.GetRow(task.Task.RowId);
             if (normal.Item.RowId == 0) continue;
 
             var item = normal.Item.Value;
