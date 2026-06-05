@@ -357,7 +357,7 @@ public sealed class RetainerVentureWindow : Window
     private void DrawExplorationSplit()
     {
         var avail = ImGui.GetContentRegionAvail();
-        var tableHeight = selectedExploration >= 0 ? avail.Y * 0.5f : avail.Y - 5;
+        var tableHeight = selectedExploration >= 0 ? avail.Y * 0.45f : avail.Y - 5;
 
         // Venture table (top half)
         var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
@@ -368,11 +368,11 @@ public sealed class RetainerVentureWindow : Window
             new Vector2(avail.X, tableHeight)))
         {
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.None, 70);
-            ImGui.TableSetupColumn("Lv", ImGuiTableColumnFlags.None, 40);
-            ImGui.TableSetupColumn("Duration", ImGuiTableColumnFlags.None, 65);
-            ImGui.TableSetupColumn("XP", ImGuiTableColumnFlags.None, 60);
-            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.None, 50);
+            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.None, 55);
+            ImGui.TableSetupColumn("Lv", ImGuiTableColumnFlags.None, 30);
+            ImGui.TableSetupColumn("Dur", ImGuiTableColumnFlags.None, 40);
+            ImGui.TableSetupColumn("XP", ImGuiTableColumnFlags.None, 50);
+            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.None, 45);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
 
@@ -433,13 +433,14 @@ public sealed class RetainerVentureWindow : Window
     private void DrawDropsTable(Vector2 avail)
     {
         if (!ImGui.BeginTable("DropsTable", 3,
-            ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV,
+            ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit,
             new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 5)))
             return;
 
         ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.None, 90);
-        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.None, 90);
+        ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.None, 80);
+        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.None, 65);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
 
