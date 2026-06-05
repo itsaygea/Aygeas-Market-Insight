@@ -13,7 +13,9 @@ public sealed class UniversalisClient : IDisposable
 {
     private readonly IPluginLog log;
     private readonly HttpClient http;
-    private readonly SemaphoreSlim concurrencyLimit = new(8);
+    private readonly SemaphoreSlim concurrencyLimit = new(4);
+    /// <summary>Delay between batches to avoid hammering Universalis.</summary>
+    private static readonly TimeSpan BatchDelay = TimeSpan.FromMilliseconds(250);
 
     public UniversalisClient(IPluginLog log)
     {
@@ -119,6 +121,9 @@ public sealed class UniversalisClient : IDisposable
             {
                 concurrencyLimit.Release();
                 onProgress?.Invoke(batchIdx + 1, totalBatches);
+                // Small delay between batches to be respectful to Universalis
+                if (batchIdx < totalBatches - 1)
+                    await Task.Delay(BatchDelay).ConfigureAwait(false);
             }
         }
 
@@ -203,13 +208,8 @@ public sealed class UniversalisClient : IDisposable
             finally
             {
                 concurrencyLimit.Release();
+                await Task.Delay(BatchDelay).ConfigureAwait(false);
             }
-        }
-
-        return results;
-    }
-
-    public void Dispose()
     {
         http.Dispose();
         concurrencyLimit.Dispose();

@@ -36,7 +36,11 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TooltipHook tooltipHook;
     private readonly string cacheFilePath;
     private DateTime lastCacheSave = DateTime.MinValue;
+    private DateTime lastRefreshTime = DateTime.MinValue;
     private bool isRefreshingAll;
+
+    /// <summary>Minimum seconds between refreshes to avoid API abuse.</summary>
+    private const int MinRefreshIntervalSeconds = 30;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,
@@ -232,6 +236,14 @@ public sealed class Plugin : IDalamudPlugin
         var worldId = GetWorldId();
         if (worldId == 0) { onComplete?.Invoke(); return; }
 
+        // Rate limit: don't allow refreshes more often than every 30 seconds
+        if ((DateTime.UtcNow - lastRefreshTime).TotalSeconds < MinRefreshIntervalSeconds)
+        {
+            onProgress?.Invoke($"Wait {MinRefreshIntervalSeconds - (int)(DateTime.UtcNow - lastRefreshTime).TotalSeconds}s between refreshes");
+            onComplete?.Invoke();
+            return;
+        }
+
         var staleIds = itemIds.Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id)).ToHashSet();
 
         if (staleIds.Count == 0)
@@ -242,6 +254,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         isRefreshingAll = true;
+        lastRefreshTime = DateTime.UtcNow;
         var ttl = config.UniversalisCacheTtlMinutes;
 
 #pragma warning disable CS4014
