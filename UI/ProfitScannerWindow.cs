@@ -17,6 +17,7 @@ public sealed class ProfitScannerWindow : Window
     private readonly UniversalisClient universalisClient;
     private readonly ArtisanIpc artisanIpc;
     private readonly IObjectTable objectTable;
+    private readonly IDataManager dataManager;
     private readonly IFramework framework;
     private readonly IPluginLog log;
 
@@ -59,6 +60,7 @@ public sealed class ProfitScannerWindow : Window
         UniversalisClient universalisClient,
         ArtisanIpc artisanIpc,
         IObjectTable objectTable,
+        IDataManager dataManager,
         IFramework framework,
         IPluginLog log)
         : base("Aygea's Market Insight — Profit Scanner###AMIScanner")
@@ -69,6 +71,7 @@ public sealed class ProfitScannerWindow : Window
         this.universalisClient = universalisClient;
         this.artisanIpc = artisanIpc;
         this.objectTable = objectTable;
+        this.dataManager = dataManager;
         this.framework = framework;
         this.log = log;
 
@@ -107,7 +110,7 @@ public sealed class ProfitScannerWindow : Window
         DrawTable();
 
         // Status bar
-        var world = objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "Unknown";
+        var world = config.HomeWorldId > 0 ? config.HomeWorldName : (objectTable.LocalPlayer?.HomeWorld.Value.Name.ToString() ?? "Unknown");
         var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
         ImGui.TextDisabled($"Last refreshed: {ago}  |  {rows.Count} recipes  |  World: {world}");
     }
@@ -220,6 +223,8 @@ public sealed class ProfitScannerWindow : Window
             ImGui.Text($"{row.CraftCost:N0}");
             ImGui.TableSetColumnIndex(4);
             ImGui.Text($"{row.MbPrice:N0}");
+            if (row.MaxDcPrice > 0 && row.MaxDcPriceWorld.Length > 0 && ImGui.IsItemHovered())
+                ImGui.SetTooltip($"Best sell: {row.MaxDcPrice:N0} on {row.MaxDcPriceWorld}");
             ImGui.TableSetColumnIndex(5);
 
             if (row.Profit >= 0)
@@ -313,7 +318,7 @@ public sealed class ProfitScannerWindow : Window
     {
         if (isLoading) return;
 
-        worldId = objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+        worldId = config.HomeWorldId > 0 ? config.HomeWorldId : (objectTable.LocalPlayer?.HomeWorld.RowId ?? 0);
         if (worldId == 0) return;
 
         isLoading = true;
@@ -378,6 +383,25 @@ public sealed class ProfitScannerWindow : Window
                     }
 
                     BuildRows();
+                    loadingStatus = "phase 3/3: fetching DC best sell prices...";
+                });
+
+                // Phase 3: Fetch DC best sell prices for result items
+                var dcName = GetDcName();
+                if (!string.IsNullOrEmpty(dcName))
+                {
+                    var dcResults = await universalisClient.FetchDcBestSellPrices(dcName, resultItemIds);
+
+                    framework.RunOnFrameworkThread(() =>
+                    {
+                        foreach (var kvp in dcResults)
+                            priceCache.UpdateDcBestSell(kvp.Key, kvp.Value.Price, kvp.Value.World);
+                        BuildRows();
+                    });
+                }
+
+                framework.RunOnFrameworkThread(() =>
+                {
                     lastRefreshTime = DateTime.UtcNow;
                     isLoading = false;
                     loadingStatus = string.Empty;
@@ -409,6 +433,8 @@ public sealed class ProfitScannerWindow : Window
             var cached = priceCache.GetIgnoreExpiry(resultItemId);
             var mbPrice = cached?.NqPrice ?? 0;
             var hqPrice = cached?.HqPrice ?? 0;
+            var maxDcPrice = cached?.MaxDcPrice ?? 0;
+            var maxDcPriceWorld = cached?.MaxDcPriceWorld ?? "";
             var displayPrice = hqOnly ? hqPrice : mbPrice;
 
             if (displayPrice == 0) continue;
@@ -432,12 +458,31 @@ public sealed class ProfitScannerWindow : Window
                 CraftCost = craftCost,
                 MbPrice = displayPrice,
                 HqPrice = hqPrice,
+                MaxDcPrice = maxDcPrice,
+                MaxDcPriceWorld = maxDcPriceWorld,
                 Profit = profit,
                 Margin = margin,
             });
         }
 
         filtersDirty = true;
+    }
+
+    private string? GetDcName()
+    {
+        var wid = config.HomeWorldId > 0 ? config.HomeWorldId : (objectTable.LocalPlayer?.HomeWorld.RowId ?? 0);
+        if (wid == 0) return null;
+
+        var worlds = dataManager.GetExcelSheet<World>();
+        if (worlds == null) return null;
+
+        foreach (var w in worlds)
+        {
+            if (w.RowId == wid)
+                return w.DataCenter.Value.Name.ToString();
+        }
+
+        return null;
     }
 
     private void AddToShoppingList(ScannerRow row)
@@ -499,6 +544,8 @@ internal sealed class ScannerRow
     public uint CraftCost;
     public uint MbPrice;
     public uint HqPrice;
+    public uint MaxDcPrice;
+    public string MaxDcPriceWorld = string.Empty;
     public int Profit;
     public float Margin;
 }

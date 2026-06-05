@@ -35,11 +35,17 @@ public sealed class PriceCache
 
     public void Set(uint itemId, uint nqPrice, uint hqPrice, string source, TimeSpan ttl)
     {
+        // Preserve existing DC best sell data when updating from a basic source
+        var existing = cache.TryGetValue(itemId, out var e) ? e : null;
         cache[itemId] = new CachedPrice
         {
             ItemId = itemId,
             NqPrice = nqPrice,
             HqPrice = hqPrice,
+            MaxDcPrice = existing?.MaxDcPrice ?? 0,
+            MaxDcPriceWorld = existing?.MaxDcPriceWorld ?? string.Empty,
+            NqSaleVelocity = existing?.NqSaleVelocity ?? 0,
+            HqSaleVelocity = existing?.HqSaleVelocity ?? 0,
             Source = source,
             ExpiresAt = DateTime.UtcNow + ttl,
         };
@@ -48,6 +54,38 @@ public sealed class PriceCache
         lock (pendingLock)
         {
             pendingFetches.Remove(itemId);
+        }
+    }
+
+    public void SetFull(uint itemId, uint nqPrice, uint hqPrice, uint maxDcPrice, string maxDcPriceWorld,
+        float nqVel, float hqVel, string source, TimeSpan ttl)
+    {
+        cache[itemId] = new CachedPrice
+        {
+            ItemId = itemId,
+            NqPrice = nqPrice,
+            HqPrice = hqPrice,
+            MaxDcPrice = maxDcPrice,
+            MaxDcPriceWorld = maxDcPriceWorld,
+            NqSaleVelocity = nqVel,
+            HqSaleVelocity = hqVel,
+            Source = source,
+            ExpiresAt = DateTime.UtcNow + ttl,
+        };
+        Generation++;
+
+        lock (pendingLock)
+        {
+            pendingFetches.Remove(itemId);
+        }
+    }
+
+    public void UpdateDcBestSell(uint itemId, uint maxDcPrice, string maxDcPriceWorld)
+    {
+        if (cache.TryGetValue(itemId, out var existing))
+        {
+            existing.MaxDcPrice = maxDcPrice;
+            existing.MaxDcPriceWorld = maxDcPriceWorld;
         }
     }
 
@@ -170,6 +208,10 @@ public sealed class CachedPrice
     public uint ItemId { get; set; }
     public uint NqPrice { get; set; }
     public uint HqPrice { get; set; }
+    public uint MaxDcPrice { get; set; }
+    public string MaxDcPriceWorld { get; set; } = string.Empty;
+    public float NqSaleVelocity { get; set; }
+    public float HqSaleVelocity { get; set; }
     public DateTime ExpiresAt { get; set; }
     public string Source { get; set; } = string.Empty;
 }

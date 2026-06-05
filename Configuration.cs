@@ -25,6 +25,14 @@ public class Configuration : IPluginConfiguration
     public int MbPriceCacheTtlMinutes { get; set; } = 30;
     public int UniversalisCacheTtlMinutes { get; set; } = 20;
 
+    // Home world override (0 = auto-detect from player)
+    public uint HomeWorldId { get; set; } = 0;
+    public string HomeWorldName { get; set; } = string.Empty;
+
+    // Tooltip popout
+    public bool EnableTooltipPopout { get; set; } = true;
+    public int TooltipPopoutModifierKey { get; set; } = 1; // 0=None, 1=Ctrl, 2=Shift, 3=Alt
+
     // Tab 2 — Profit Scanner
     public bool RememberScannerWindowPos { get; set; } = true;
     public int DefaultMinProfitFilter { get; set; } = 0;

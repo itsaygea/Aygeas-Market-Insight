@@ -9,6 +9,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using AygeaMarketInsight.UI;
+using Lumina.Excel.Sheets;
 
 namespace AygeaMarketInsight;
 
@@ -21,9 +22,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICommandManager commandManager;
     private readonly IObjectTable objectTable;
     private readonly IPluginLog log;
+    private readonly IDataManager dataManager;
+    private readonly IFramework framework;
 
     private readonly Configuration config;
     private readonly RecipeCache recipeCache;
+    private readonly VentureCache ventureCache;
     private readonly PriceCache priceCache;
     private readonly UniversalisClient universalisClient;
     private readonly ArtisanIpc artisanIpc;
@@ -49,12 +53,15 @@ public sealed class Plugin : IDalamudPlugin
         this.commandManager = commandManager;
         this.objectTable = objectTable;
         this.log = log;
+        this.dataManager = dataManager;
+        this.framework = framework;
 
         // Config
         config = Configuration.Load(pluginInterface);
 
         // Data layer
         recipeCache = new RecipeCache(dataManager, log);
+        ventureCache = new VentureCache(dataManager, log);
         priceCache = new PriceCache();
         cacheFilePath = Path.Combine(pluginInterface.GetPluginConfigDirectory(), "price_cache.json");
         var loaded = priceCache.LoadFromFile(cacheFilePath);
@@ -63,9 +70,9 @@ public sealed class Plugin : IDalamudPlugin
         artisanIpc = new ArtisanIpc(pluginInterface, log);
 
         // UI
-        var configWindow = new ConfigWindow(config, artisanIpc, log);
+        var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log);
         var scannerWindow = new ProfitScannerWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, framework, log);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log);
         var shoppingListWindow = new ShoppingListWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, notificationManager, framework, log);
 
@@ -73,7 +80,12 @@ public sealed class Plugin : IDalamudPlugin
             gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
         var itemDetailPopout = new ItemDetailPopout(recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
 
-        pluginUI = new PluginUI(pluginInterface, configWindow, scannerWindow, shoppingListWindow, itemDetailPopout);
+        var retainerWindow = new RetainerVentureWindow(
+            config, ventureCache, priceCache, universalisClient, objectTable, framework, log);
+
+        var hubWindow = new HubWindow(config);
+
+        pluginUI = new PluginUI(pluginInterface, hubWindow, configWindow, scannerWindow, shoppingListWindow, itemDetailPopout, retainerWindow);
 
         // Events
         pluginInterface.UiBuilder.Draw += OnDraw;
@@ -87,7 +99,7 @@ public sealed class Plugin : IDalamudPlugin
         // Commands
         commandManager.AddHandler("/ami", new CommandInfo(OnAmiCommand)
         {
-            HelpMessage = "Usage: /ami [scan|sl|list|config|detail] — Settings (default), Scanner, Shopping List, or Item Detail.",
+            HelpMessage = "Usage: /ami [scan|sl|list|config|detail|r] — Hub (default), Scanner, Shopping List, Settings, Item Detail, or Retainer.",
         });
 
         log.Information("Aygea's Market Insight loaded");
@@ -119,7 +131,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnOpenMainUi()
     {
-        pluginUI.ToggleScannerWindow();
+        pluginUI.ToggleHubWindow();
     }
 
     private void OnMarketBoardOfferings(IMarketBoardCurrentOfferings offerings)
@@ -175,10 +187,40 @@ public sealed class Plugin : IDalamudPlugin
             case "detail":
                 pluginUI.ToggleItemDetailPopout();
                 break;
+            case "r":
+            case "retainer":
+                pluginUI.ToggleRetainerWindow();
+                break;
             default:
-                pluginUI.ToggleConfigWindow();
+                pluginUI.ToggleHubWindow();
                 break;
         }
+    }
+
+    public uint GetWorldId()
+    {
+        if (config.HomeWorldId > 0) return config.HomeWorldId;
+        return objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+    }
+
+    public string? GetDcName()
+    {
+        var worldId = GetWorldId();
+        if (worldId == 0) return null;
+
+        var worlds = dataManager.GetExcelSheet<World>();
+        if (worlds == null) return null;
+
+        foreach (var w in worlds)
+        {
+            if (w.RowId == worldId)
+            {
+                var dc = w.DataCenter.Value;
+                return dc.Name.ToString();
+            }
+        }
+
+        return null;
     }
 
     public void Dispose()

@@ -89,7 +89,7 @@ public sealed class ItemDetailPopout : Window
         foreach (var id in toFetch)
             priceCache.MarkPending(id);
 
-        var worldId = objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+        var worldId = config.HomeWorldId > 0 ? config.HomeWorldId : (objectTable.LocalPlayer?.HomeWorld.RowId ?? 0);
         if (worldId == 0) return;
         var ttl = config.UniversalisCacheTtlMinutes;
 
@@ -120,7 +120,14 @@ public sealed class ItemDetailPopout : Window
     {
         if (pinned == null)
         {
-            ImGui.TextDisabled("Hover a craftable item and hold Ctrl to pin details here.");
+            var hint = config.TooltipPopoutModifierKey switch
+            {
+                0 => "Hover a craftable item to pin details here.",
+                2 => "Hover a craftable item + hold Shift to pin details here.",
+                3 => "Hover a craftable item + hold Alt to pin details here.",
+                _ => "Hover a craftable item + hold Ctrl to pin details here.",
+            };
+            ImGui.TextDisabled(hint);
             return;
         }
 
@@ -133,13 +140,19 @@ public sealed class ItemDetailPopout : Window
             mbPrice = showHq ? (pinned.HqSnapshot > 0 ? pinned.HqSnapshot : pinned.MbPriceRaw) : pinned.MbPriceRaw;
         uint mbAfterTax = (uint)(mbPrice * (1f - config.SalesTaxPercent / 100f));
 
+        // Best sell price across DC
+        uint bestSellPrice = cached?.MaxDcPrice ?? 0;
+        string bestSellWorld = cached?.MaxDcPriceWorld ?? "";
+        uint bestSellAfterTax = bestSellPrice > 0 ? (uint)(bestSellPrice * (1f - config.SalesTaxPercent / 100f)) : 0;
+
         var recipe = recipeCache.GetRecipe(pinned.RecipeId);
         uint craftCost = 0;
         List<RecipeCache.IngredientCost> breakdown = [];
         if (recipe != null)
             craftCost = recipeCache.CalculateCraftCost(recipe.Value, priceCache, out breakdown);
 
-        int profit = (int)(mbAfterTax - craftCost);
+        uint effectiveSellPrice = bestSellAfterTax > mbAfterTax ? bestSellAfterTax : mbAfterTax;
+        int profit = (int)(effectiveSellPrice - craftCost);
 
         // Item name + craft level
         ImGui.Text(pinned.ItemName);
@@ -181,6 +194,28 @@ public sealed class ItemDetailPopout : Window
                 ImGui.TextDisabled($"After tax ({tax:F0}%):");
                 ImGui.TableSetColumnIndex(1);
                 ImGui.TextDisabled(mbAfterTax > 0 ? $"{mbAfterTax:N0} gil" : "—");
+            }
+
+            // Best sell across DC
+            if (bestSellPrice > 0 && bestSellWorld.Length > 0)
+            {
+                var premium = bestSellAfterTax > mbAfterTax && mbAfterTax > 0;
+
+                ImGui.TableNextRow();
+                ImGui.TableSetColumnIndex(0);
+                if (premium)
+                    ImGui.TextColored(new System.Numerics.Vector4(0.2f, 0.8f, 1f, 1f), "Best sell:");
+                else
+                    ImGui.Text("Best sell:");
+                ImGui.TableSetColumnIndex(1);
+                if (premium)
+                {
+                    var pct = mbAfterTax > 0 ? (bestSellAfterTax - mbAfterTax) * 100f / mbAfterTax : 0;
+                    ImGui.TextColored(new System.Numerics.Vector4(0.2f, 0.8f, 1f, 1f),
+                        $"{bestSellPrice:N0} on {bestSellWorld} (+{pct:F0}%)");
+                }
+                else
+                    ImGui.Text($"{bestSellPrice:N0} on {bestSellWorld}");
             }
 
             ImGui.TableNextRow();

@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
+using Lumina.Excel.Sheets;
 
 namespace AygeaMarketInsight.UI;
 
@@ -11,15 +14,21 @@ public sealed class ConfigWindow : Window
     private readonly Configuration config;
     private readonly ArtisanIpc artisanIpc;
     private readonly IPluginLog log;
+    private readonly IDataManager dataManager;
+    private readonly IObjectTable objectTable;
 
-    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IPluginLog log)
+    private List<(uint Id, string Name)>? dcWorlds;
+
+    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IDataManager dataManager, IObjectTable objectTable, IPluginLog log)
         : base("Aygea's Market Insight — Settings###AMIConfig")
     {
         this.config = config;
         this.artisanIpc = artisanIpc;
         this.log = log;
+        this.dataManager = dataManager;
+        this.objectTable = objectTable;
 
-        Size = new System.Numerics.Vector2(500, 450);
+        Size = new System.Numerics.Vector2(500, 500);
         SizeCondition = ImGuiCond.FirstUseEver;
     }
 
@@ -78,6 +87,72 @@ public sealed class ConfigWindow : Window
         SliderInt("Universalis-sourced TTL (minutes)", config.UniversalisCacheTtlMinutes, v => config.UniversalisCacheTtlMinutes = v, 5, 120);
 
         ImGui.TextDisabled("Universalis batch size: 100 items (fixed)");
+
+        ImGui.Spacing();
+        ImGui.Text("Home World");
+        ImGui.Separator();
+
+        var detectedWorld = objectTable.LocalPlayer?.HomeWorld;
+        var detectedName = detectedWorld?.Value.Name.ToString() ?? "Unknown";
+        var detectedId = detectedWorld?.RowId ?? 0;
+
+        if (config.HomeWorldId > 0)
+            ImGui.TextDisabled($"Auto-detected: {detectedName} (using override)");
+        else
+            ImGui.TextDisabled($"Auto-detected: {detectedName}");
+
+        // Build DC world list lazily
+        dcWorlds ??= BuildDcWorldList(detectedId);
+
+        if (dcWorlds.Count > 0)
+        {
+            var currentName = config.HomeWorldId > 0 ? config.HomeWorldName : $"Auto ({detectedName})";
+            if (ImGui.BeginCombo("Home World", currentName))
+            {
+                // Auto-detect option
+                if (ImGui.Selectable($"Auto ({detectedName})", config.HomeWorldId == 0))
+                {
+                    config.HomeWorldId = 0;
+                    config.HomeWorldName = string.Empty;
+                    config.Save();
+                }
+
+                foreach (var (id, name) in dcWorlds)
+                {
+                    if (ImGui.Selectable(name, config.HomeWorldId == id))
+                    {
+                        config.HomeWorldId = id;
+                        config.HomeWorldName = name;
+                        config.Save();
+                    }
+                }
+
+                ImGui.EndCombo();
+            }
+        }
+
+        ImGui.TextDisabled("Sets your world for accurate buy-side pricing.");
+
+        ImGui.Spacing();
+        ImGui.Text("Item Detail Popout");
+        ImGui.Separator();
+
+        Checkbox("Enable item detail popout on hover", config.EnableTooltipPopout, v => config.EnableTooltipPopout = v);
+
+        var keyNames = new[] { "None (hover only)", "Ctrl", "Shift", "Alt" };
+        var keyIdx = Math.Clamp(config.TooltipPopoutModifierKey, 0, 3);
+        if (ImGui.Combo("Popout trigger key", ref keyIdx, keyNames, keyNames.Length))
+        {
+            config.TooltipPopoutModifierKey = keyIdx;
+            config.Save();
+        }
+
+        var keyHint = keyIdx switch
+        {
+            0 => "Hover a craftable item to pin details.",
+            _ => $"Hold {keyNames[keyIdx]} + hover a craftable item to pin details.",
+        };
+        ImGui.TextDisabled(keyHint);
 
         ImGui.EndTabItem();
     }
@@ -225,5 +300,39 @@ public sealed class ConfigWindow : Window
             Math.Min(v.Y + 0.15f, 1f),
             Math.Min(v.Z + 0.15f, 1f),
             v.W));
+    }
+
+    private List<(uint Id, string Name)> BuildDcWorldList(uint currentWorldId)
+    {
+        var worlds = dataManager.GetExcelSheet<World>();
+        if (worlds == null) return [];
+
+        // Find the player's DC from their current world
+        uint dcId = 0;
+        foreach (var w in worlds)
+        {
+            if (w.RowId == currentWorldId)
+            {
+                dcId = w.DataCenter.RowId;
+                break;
+            }
+        }
+
+        if (dcId == 0) return [];
+
+        var result = new List<(uint, string)>();
+        foreach (var w in worlds)
+        {
+            if (w.DataCenter.RowId == dcId && !w.IsPublic)
+                continue;
+            if (w.DataCenter.RowId != dcId) continue;
+
+            var name = w.Name.ToString();
+            if (!string.IsNullOrEmpty(name))
+                result.Add((w.RowId, name));
+        }
+
+        result.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
+        return result;
     }
 }

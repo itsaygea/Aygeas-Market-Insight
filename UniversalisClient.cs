@@ -75,6 +75,7 @@ public sealed class UniversalisClient : IDisposable
                     var itemId = idEl.GetUInt32();
 
                     uint nqWorld = 0, hqWorld = 0, nqDc = 0, hqDc = 0;
+                    float nqVel = 0, hqVel = 0;
 
                     if (item.TryGetProperty("nq", out var nq) &&
                         nq.TryGetProperty("minListing", out var nqListing))
@@ -90,6 +91,12 @@ public sealed class UniversalisClient : IDisposable
                         hqDc = GetPrice(hqListing, "dc");
                     }
 
+                    // Parse sale velocity
+                    if (item.TryGetProperty("nq", out var nqObj))
+                        nqVel = GetVelocity(nqObj);
+                    if (item.TryGetProperty("hq", out var hqObj))
+                        hqVel = GetVelocity(hqObj);
+
                     results[itemId] = new UniversalisItemPrice
                     {
                         ItemId = itemId,
@@ -97,6 +104,8 @@ public sealed class UniversalisClient : IDisposable
                         HqPrice = hqWorld > 0 ? hqWorld : hqDc,
                         NqDcPrice = nqDc,
                         HqDcPrice = hqDc,
+                        NqSaleVelocity = nqVel,
+                        HqSaleVelocity = hqVel,
                         Source = "Universalis",
                         ExpiresAt = DateTime.UtcNow + TimeSpan.FromMinutes(ttlMinutes),
                     };
@@ -123,6 +132,83 @@ public sealed class UniversalisClient : IDisposable
         return p.ValueKind == JsonValueKind.Null ? 0 : p.GetUInt32();
     }
 
+    private static float GetVelocity(JsonElement quality)
+    {
+        if (!quality.TryGetProperty("dailySaleVelocity", out var vel)) return 0;
+        if (!vel.TryGetProperty("world", out var world)) return 0;
+        if (!world.TryGetProperty("quantity", out var q)) return 0;
+        return q.ValueKind == JsonValueKind.Null ? 0 : q.GetSingle();
+    }
+
+    public async Task<Dictionary<uint, (uint Price, string World)>> FetchDcBestSellPrices(
+        string dcName,
+        IEnumerable<uint> itemIds)
+    {
+        var results = new Dictionary<uint, (uint, string)>();
+        var batchList = itemIds.Distinct().Chunk(100).ToArray();
+
+        foreach (var batch in batchList)
+        {
+            try
+            {
+                await concurrencyLimit.WaitAsync().ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            try
+            {
+                var ids = string.Join(",", batch);
+                var url = $"https://universalis.app/api/v2/{dcName}/{ids}?listings=50";
+
+                var response = await http.GetAsync(url).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode) continue;
+
+                var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(json);
+
+                if (!doc.RootElement.TryGetProperty("items", out var itemsObj)) continue;
+
+                foreach (var prop in itemsObj.EnumerateObject())
+                {
+                    if (!uint.TryParse(prop.Name, out var itemId)) continue;
+                    var itemData = prop.Value;
+
+                    if (!itemData.TryGetProperty("listings", out var listings)) continue;
+
+                    // Find the cheapest listing per world, then pick the world with the highest floor price
+                    var worldPrices = new Dictionary<string, uint>();
+                    foreach (var listing in listings.EnumerateArray())
+                    {
+                        var price = listing.TryGetProperty("pricePerUnit", out var p) ? p.GetUInt32() : 0;
+                        var world = listing.TryGetProperty("worldName", out var w) ? w.GetString() ?? "" : "";
+
+                        if (price == 0 || string.IsNullOrEmpty(world)) continue;
+                        if (!worldPrices.ContainsKey(world) || price < worldPrices[world])
+                            worldPrices[world] = price;
+                    }
+
+                    if (worldPrices.Count == 0) continue;
+
+                    var best = worldPrices.MaxBy(kvp => kvp.Value);
+                    results[itemId] = (best.Value, best.Key);
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Warning(ex, "Universalis DC best-sell fetch failed");
+            }
+            finally
+            {
+                concurrencyLimit.Release();
+            }
+        }
+
+        return results;
+    }
+
     public void Dispose()
     {
         http.Dispose();
@@ -137,6 +223,10 @@ public sealed class UniversalisItemPrice
     public uint HqPrice { get; set; }
     public uint NqDcPrice { get; set; }
     public uint HqDcPrice { get; set; }
+    public float NqSaleVelocity { get; set; }
+    public float HqSaleVelocity { get; set; }
+    public uint MaxDcPrice { get; set; }
+    public string MaxDcPriceWorld { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public string Source { get; set; } = "Universalis";
 }

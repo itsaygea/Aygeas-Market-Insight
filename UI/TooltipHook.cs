@@ -120,7 +120,7 @@ public sealed class TooltipHook : IDisposable
         foreach (var id in toFetch)
             priceCache.MarkPending(id);
 
-        var worldId = objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+        var worldId = config.HomeWorldId > 0 ? config.HomeWorldId : (objectTable.LocalPlayer?.HomeWorld.RowId ?? 0);
         if (worldId == 0) return;
         var ttl = config.UniversalisCacheTtlMinutes;
 
@@ -264,14 +264,30 @@ public sealed class TooltipHook : IDisposable
             }
         }
 
-        ImGui.TextDisabled("Hold Ctrl to pin details");
+        var keyLabel = config.TooltipPopoutModifierKey switch
+        {
+            0 => "Hover to pin details",
+            2 => "Hold Shift to pin details",
+            3 => "Hold Alt to pin details",
+            _ => "Hold Ctrl to pin details",
+        };
+        if (config.EnableTooltipPopout)
+            ImGui.TextDisabled(keyLabel);
     }
 
     public bool CheckPinRequest()
     {
         if (!dataReady || hoveredItemId == 0) return false;
-        if (!ImGui.GetIO().KeyCtrl) return false;
-        return true;
+        if (!config.EnableTooltipPopout) return false;
+
+        var io = ImGui.GetIO();
+        return config.TooltipPopoutModifierKey switch
+        {
+            0 => true, // No modifier required
+            2 => io.KeyShift,
+            3 => io.KeyAlt,
+            _ => io.KeyCtrl, // Default: Ctrl
+        };
     }
 
     public void Dispose()
