@@ -250,10 +250,12 @@ public sealed class Plugin : IDalamudPlugin
         {
             try
             {
-                onProgress?.Invoke($"fetching {staleIds.Count} items...");
+                framework.RunOnFrameworkThread(() =>
+                    onProgress?.Invoke($"fetching {staleIds.Count} items..."));
 
                 var results = await universalisClient.FetchPrices(worldId, staleIds, ttl,
-                    (done, total) => onProgress?.Invoke($"fetching {done}/{total}"));
+                    (done, total) => framework.RunOnFrameworkThread(() =>
+                        onProgress?.Invoke($"fetching {done}/{total}")));
 
                 framework.RunOnFrameworkThread(() =>
                 {

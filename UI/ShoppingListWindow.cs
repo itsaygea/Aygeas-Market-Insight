@@ -93,9 +93,11 @@ public sealed class ShoppingListWindow : Window
         }
 
         if (isLoading)
+        {
             ImGui.TextDisabled($"Refreshing prices... {loadingStatus}");
+            ImGui.SameLine();
+        }
 
-        ImGui.SameLine();
         if (ImGui.SmallButton("Refresh Prices##SL"))
             RefreshPrices();
 
