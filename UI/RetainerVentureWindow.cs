@@ -368,11 +368,11 @@ public sealed class RetainerVentureWindow : Window
             new Vector2(avail.X, tableHeight)))
         {
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Type", 70);
-            ImGui.TableSetupColumn("Lv", 40);
-            ImGui.TableSetupColumn("Duration", 65);
-            ImGui.TableSetupColumn("XP", 60);
-            ImGui.TableSetupColumn("Drops", 50);
+            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.None, 70);
+            ImGui.TableSetupColumn("Lv", ImGuiTableColumnFlags.None, 40);
+            ImGui.TableSetupColumn("Duration", ImGuiTableColumnFlags.None, 65);
+            ImGui.TableSetupColumn("XP", ImGuiTableColumnFlags.None, 60);
+            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.None, 50);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
 
@@ -384,7 +384,6 @@ public sealed class RetainerVentureWindow : Window
                 var isSelected = i == selectedExploration;
                 if (isSelected)
                 {
-                    var tableFlags2 = ImGuiTableFlags.None;
                     ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0,
                         ImGui.ColorConvertFloat4ToU32(new Vector4(0.2f, 0.4f, 0.2f, 0.4f)));
                 }
@@ -439,8 +438,8 @@ public sealed class RetainerVentureWindow : Window
             return;
 
         ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("MB Price", 90);
-        ImGui.TableSetupColumn("Source", 90);
+        ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.None, 90);
+        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.None, 90);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
 
