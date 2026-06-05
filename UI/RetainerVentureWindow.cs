@@ -426,10 +426,8 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableHeadersRow();
 
             // Pre-calculate best drop price per venture for profit coloring.
-            // Only consider items with real market activity: price > 0 AND
-            // (velocity > 0 OR seen live on MB). This naturally excludes
-            // discontinued items like Explorer's Tunic that have stale prices
-            // but no actual trading activity.
+            // Exclude: (1) discontinued items (no sales activity unless seen live on MB),
+            // (2) money-transfer outliers (world price >> DC cheapest, e.g. 500M vs 49 gil).
             var bestPrices = new float[filteredExplorations.Count];
             for (var i = 0; i < filteredExplorations.Count; i++)
             {
@@ -438,10 +436,18 @@ public sealed class RetainerVentureWindow : Window
                 {
                     var cached = priceCache.GetIgnoreExpiry(dropId);
                     var p = cached?.NqPrice ?? 0;
+                    if (p == 0) continue;
+
+                    // Outlier: world price > 10x DC cheapest = likely money transfer
+                    var dcMin = cached?.DcMinPrice ?? 0;
+                    if (dcMin > 0 && p > dcMin * 10) continue;
+
+                    // Discontinued: no sales velocity unless we saw it live on MB
                     var vel = cached?.NqSaleVelocity ?? 0;
                     var src = cached?.Source ?? "";
-                    if (p > maxP && (vel > 0 || src == "MB"))
-                        maxP = p;
+                    if (vel == 0 && src != "MB") continue;
+
+                    if (p > maxP) maxP = p;
                 }
                 bestPrices[i] = maxP;
             }
@@ -635,6 +641,11 @@ public sealed class RetainerVentureWindow : Window
             var cached = priceCache.GetIgnoreExpiry(v.ItemId);
             var mbPrice = cached?.NqPrice ?? 0;
             var velocity = cached?.NqSaleVelocity ?? 0;
+
+            // Zero out obvious outliers (money transfers): world price > 10x DC cheapest
+            var dcMin = cached?.DcMinPrice ?? 0;
+            if (dcMin > 0 && mbPrice > dcMin * 10)
+                mbPrice = 0;
 
             var gilPerRun = mbPrice > 0
                 ? (int)(v.Quantity * mbPrice * (1f - config.SalesTaxPercent / 100f))

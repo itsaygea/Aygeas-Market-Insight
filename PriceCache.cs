@@ -58,7 +58,7 @@ public sealed class PriceCache
     }
 
     public void SetFull(uint itemId, uint nqPrice, uint hqPrice, uint maxDcPrice, string maxDcPriceWorld,
-        float nqVel, float hqVel, string source, TimeSpan ttl)
+        float nqVel, float hqVel, string source, TimeSpan ttl, uint dcMinPrice = 0)
     {
         cache[itemId] = new CachedPrice
         {
@@ -67,6 +67,7 @@ public sealed class PriceCache
             HqPrice = hqPrice,
             MaxDcPrice = maxDcPrice,
             MaxDcPriceWorld = maxDcPriceWorld,
+            DcMinPrice = dcMinPrice,
             NqSaleVelocity = nqVel,
             HqSaleVelocity = hqVel,
             Source = source,
@@ -210,6 +211,8 @@ public sealed class CachedPrice
     public uint HqPrice { get; set; }
     public uint MaxDcPrice { get; set; }
     public string MaxDcPriceWorld { get; set; } = string.Empty;
+    /// <summary>Cheapest NQ listing across the entire data center (for outlier detection).</summary>
+    public uint DcMinPrice { get; set; }
     public float NqSaleVelocity { get; set; }
     public float HqSaleVelocity { get; set; }
     public DateTime ExpiresAt { get; set; }
