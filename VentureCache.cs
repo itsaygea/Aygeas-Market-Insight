@@ -48,19 +48,18 @@ public sealed class VentureCache
         {
             if (task.IsRandom) continue;
 
-            // Task is a row reference to RetainerTaskNormal
-            var normal = normalSheet.GetRow(task.Task);
-            if (normal == null) continue;
+            if (task.Task.RowId == 0) continue;
 
-            var n = normal.Value;
-            var item = n.Item.Value;
-            if (item.RowId == 0) continue;
+            var normal = task.Task.Value;
+            if (normal.Item.RowId == 0) continue;
+
+            var item = normal.Item.Value;
 
             var itemName = item.Name.ToString();
             if (string.IsNullOrEmpty(itemName)) continue;
 
             // Use Quantity2 as middle-tier baseline
-            byte quantity = n.Quantity2;
+            byte quantity = normal.Quantity2;
             if (quantity == 0) quantity = 1;
 
             var type = ClassifyType(task);
@@ -70,9 +69,9 @@ public sealed class VentureCache
                 TaskId = task.RowId,
                 ItemId = item.RowId,
                 ItemName = itemName,
+                Quantity = quantity,
                 RequiredLevel = task.RetainerLevel,
                 XpReward = task.Experience,
-                Quantity = quantity,
                 DurationMinutes = task.MaxTimemin,
                 Type = type,
             });

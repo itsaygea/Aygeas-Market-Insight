@@ -320,7 +320,7 @@ public sealed class ConfigWindow : Window
 
         if (dcId == 0) return [];
 
-        var result = new List<(uint, string)>();
+        var result = new List<(uint Id, string Name)>();
         foreach (var w in worlds)
         {
             if (w.DataCenter.RowId == dcId && !w.IsPublic)
