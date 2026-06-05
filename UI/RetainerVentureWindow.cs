@@ -426,30 +426,29 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableHeadersRow();
 
             // Pre-calculate best drop price per venture for profit coloring.
-            // Exclude: (1) discontinued items (no sales activity unless seen live on MB),
-            // (2) money-transfer outliers (world price >> DC cheapest, e.g. 500M vs 49 gil).
+            // Filter out money-transfer outliers (world price >> DC cheapest).
+            // Fallback to raw best if all items get filtered.
             var bestPrices = new float[filteredExplorations.Count];
             for (var i = 0; i < filteredExplorations.Count; i++)
             {
                 var maxP = 0u;
+                var rawMaxP = 0u;
                 foreach (var dropId in filteredExplorations[i].DropItemIds)
                 {
                     var cached = priceCache.GetIgnoreExpiry(dropId);
                     var p = cached?.NqPrice ?? 0;
                     if (p == 0) continue;
 
+                    if (p > rawMaxP) rawMaxP = p;
+
                     // Outlier: world price > 10x DC cheapest = likely money transfer
                     var dcMin = cached?.DcMinPrice ?? 0;
                     if (dcMin > 0 && p > dcMin * 10) continue;
 
-                    // Discontinued: no sales velocity unless we saw it live on MB
-                    var vel = cached?.NqSaleVelocity ?? 0;
-                    var src = cached?.Source ?? "";
-                    if (vel == 0 && src != "MB") continue;
-
                     if (p > maxP) maxP = p;
                 }
-                bestPrices[i] = maxP;
+                // Fallback: if outlier filter removed everything, use raw best
+                bestPrices[i] = maxP > 0 ? maxP : rawMaxP;
             }
             var topPrice = bestPrices.Length > 0 ? bestPrices.Max() : 0;
 
