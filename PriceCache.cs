@@ -192,6 +192,12 @@ public sealed class PriceCache
             foreach (var entry in entries)
             {
                 if (entry.ItemId == 0) continue;
+
+                // Expire old-format entries that lack DC price data (pre-v1.0.3.27).
+                // They'll be re-fetched automatically on next refresh with correct data.
+                if (entry.Source == "Universalis" && entry.DcMinPrice == 0)
+                    entry.ExpiresAt = DateTime.MinValue;
+
                 cache.TryAdd(entry.ItemId, entry);
                 loaded++;
             }
