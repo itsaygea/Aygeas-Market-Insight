@@ -440,6 +440,34 @@ public sealed class RetainerVentureWindow : Window
             ImGui.SameLine();
             ImGui.TextDisabled($"({selectedDrops.Count} items)");
 
+            // Show value summary
+            var totalPrice = selectedDrops.Sum(d => d.Price);
+            var pricedCount = selectedDrops.Count(d => d.Price > 0);
+            if (pricedCount > 0)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f),
+                    $"  Highest: {selectedDrops.Max(d => d.Price):N0}");
+            }
+
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.BeginTooltip();
+                ImGui.Text("Color highlights:");
+                ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green");
+                ImGui.SameLine();
+                ImGui.TextUnformatted("— Highest priced drop");
+                ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
+                ImGui.SameLine();
+                ImGui.TextUnformatted("— Top 3 valued drops");
+                ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "  Gold");
+                ImGui.SameLine();
+                ImGui.TextUnformatted("— Top 3 item names");
+                ImGui.EndTooltip();
+            }
+
             DrawDropsTable(avail);
         }
     }
@@ -458,20 +486,30 @@ public sealed class RetainerVentureWindow : Window
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
 
-        var maxPrice = selectedDrops.Count > 0 ? selectedDrops.Max(d => d.Price) : 0;
+        // Sort by price descending and find top tiers for highlighting
+        var sorted = selectedDrops.OrderByDescending(d => d.Price).ToList();
+        var top3Cutoff = sorted.Count > 3 ? sorted[2].Price : (sorted.Count > 0 ? sorted[^1].Price : 0);
+        var maxPrice = sorted.Count > 0 ? sorted[0].Price : 0;
 
-        foreach (var drop in selectedDrops.OrderByDescending(d => d.Price))
+        foreach (var drop in sorted)
         {
             ImGui.TableNextRow();
 
             ImGui.TableSetColumnIndex(0);
-            ImGui.Text(drop.Name);
+
+            // Color the item name for top-valued drops
+            if (drop.Price > 0 && drop.Price >= top3Cutoff && maxPrice > 0)
+                ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), drop.Name); // gold
+            else
+                ImGui.Text(drop.Name);
 
             ImGui.TableSetColumnIndex(1);
             if (drop.Price > 0)
             {
                 if (drop.Price == maxPrice && maxPrice > 0)
-                    ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), $"{drop.Price:N0}");
+                    ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), $"{drop.Price:N0}"); // green — best
+                else if (drop.Price >= top3Cutoff && maxPrice > 0)
+                    ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), $"{drop.Price:N0}"); // blue — top 3
                 else
                     ImGui.Text($"{drop.Price:N0}");
             }
