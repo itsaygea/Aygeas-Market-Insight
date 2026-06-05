@@ -112,6 +112,10 @@ public sealed class RetainerVentureWindow : Window
             DrawTargetedTab();
         else
             DrawExplorationTab();
+
+        // Shared status bar
+        var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
+        ImGui.TextDisabled($"Last refreshed: {ago}  |  {ventureCache.Ventures.Count} ventures, {ventureCache.Explorations.Count} explorations");
     }
 
     private void DrawTabBar()
@@ -146,24 +150,6 @@ public sealed class RetainerVentureWindow : Window
         }
 
         DrawTargetedTable();
-
-        var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
-        ImGui.TextDisabled($"Last refreshed: {ago}  |  {rows.Count} ventures");
-
-        ImGui.SameLine();
-        ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.BeginTooltip();
-            ImGui.Text("Color highlights:");
-            ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green");
-            ImGui.SameLine();
-            ImGui.TextUnformatted("— Highest Gil/Hr venture");
-            ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
-            ImGui.SameLine();
-            ImGui.TextUnformatted("— Highest XP reward");
-            ImGui.EndTooltip();
-        }
     }
 
     private void DrawTargetedControls()
