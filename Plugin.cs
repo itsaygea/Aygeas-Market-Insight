@@ -72,7 +72,7 @@ public sealed class Plugin : IDalamudPlugin
 
         // UI
         var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log);
-        Action<Action<string>?, Action?> sharedRefresh = RefreshAllPrices;
+        System.Action<System.Action<string>?, System.Action?> sharedRefresh = RefreshAllPrices;
         var scannerWindow = new ProfitScannerWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log, sharedRefresh);
         var shoppingListWindow = new ShoppingListWindow(
@@ -225,7 +225,7 @@ public sealed class Plugin : IDalamudPlugin
         return null;
     }
 
-    public void RefreshAllPrices(Action<string>? onProgress, Action? onComplete)
+    public void RefreshAllPrices(System.Action<string>? onProgress, System.Action? onComplete)
     {
         if (isRefreshingAll) { onComplete?.Invoke(); return; }
 

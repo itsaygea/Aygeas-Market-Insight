@@ -4,7 +4,7 @@
   "Punchline": "Crafting profit tracker — compare craft cost vs market price.",
   "Description": "Crafting profit tracker — compare craft cost vs market price, scan for profitable recipes, and build shopping lists with max-price guidance. Made by Aygea (twitch.tv/crazyaygea)",
   "InternalName": "AygeaMarketInsight",
-  "AssemblyVersion": "1.0.3.12",
+  "AssemblyVersion": "1.0.3.13",
   "RepoUrl": "https://github.com/itsaygea/Aygeas-Market-Insight",
   "DonateButtonUrl": "https://ko-fi.com/aygea",
   "DalamudApiLevel": 15,

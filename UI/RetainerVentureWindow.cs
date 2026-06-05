@@ -18,7 +18,7 @@ public sealed class RetainerVentureWindow : Window
     private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
-    private readonly System.Action<Action<string>?, Action?> refreshAll;
+    private readonly System.Action<System.Action<string>?, System.Action?> refreshAll;
 
     // Targeted tab state
     private List<VentureRow> rows = [];
@@ -64,7 +64,7 @@ public sealed class RetainerVentureWindow : Window
         IObjectTable objectTable,
         IFramework framework,
         IPluginLog log,
-        System.Action<Action<string>?, Action?> refreshAll)
+        System.Action<System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Retainer Ventures###AMIRetainer")
     {
         this.config = config;

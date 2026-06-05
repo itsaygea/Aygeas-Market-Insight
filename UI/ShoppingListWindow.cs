@@ -17,7 +17,7 @@ public sealed class ShoppingListWindow : Window
     private readonly ArtisanIpc artisanIpc;
     private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
-    private readonly System.Action<Action<string>?, Action?> refreshAll;
+    private readonly System.Action<System.Action<string>?, System.Action?> refreshAll;
 
     private bool showConfirmClear;
     private bool isLoading;
@@ -32,7 +32,7 @@ public sealed class ShoppingListWindow : Window
         INotificationManager notificationManager,
         IFramework framework,
         IPluginLog log,
-        System.Action<Action<string>?, Action?> refreshAll)
+        System.Action<System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Shopping List###AMIShoppingList")
     {
         this.config = config;

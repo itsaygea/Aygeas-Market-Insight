@@ -20,7 +20,7 @@ public sealed class ProfitScannerWindow : Window
     private readonly IDataManager dataManager;
     private readonly IFramework framework;
     private readonly IPluginLog log;
-    private readonly System.Action<Action<string>?, Action?> refreshAll;
+    private readonly System.Action<System.Action<string>?, System.Action?> refreshAll;
 
     private List<ScannerRow> rows = [];
 
@@ -65,7 +65,7 @@ public sealed class ProfitScannerWindow : Window
         IDataManager dataManager,
         IFramework framework,
         IPluginLog log,
-        System.Action<Action<string>?, Action?> refreshAll)
+        System.Action<System.Action<string>?, System.Action?> refreshAll)
         : base("Aygea's Market Insight — Profit Scanner###AMIScanner")
     {
         this.config = config;
