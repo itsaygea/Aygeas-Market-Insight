@@ -210,6 +210,12 @@ public sealed class UniversalisClient : IDisposable
                 concurrencyLimit.Release();
                 await Task.Delay(BatchDelay).ConfigureAwait(false);
             }
+        }
+
+        return results;
+    }
+
+    public void Dispose()
     {
         http.Dispose();
         concurrencyLimit.Dispose();
