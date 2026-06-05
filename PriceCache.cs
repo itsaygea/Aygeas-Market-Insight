@@ -44,6 +44,7 @@ public sealed class PriceCache
             HqPrice = hqPrice,
             MaxDcPrice = existing?.MaxDcPrice ?? 0,
             MaxDcPriceWorld = existing?.MaxDcPriceWorld ?? string.Empty,
+            DcMinPrice = existing?.DcMinPrice ?? 0,
             NqSaleVelocity = existing?.NqSaleVelocity ?? 0,
             HqSaleVelocity = existing?.HqSaleVelocity ?? 0,
             Source = source,
@@ -60,14 +61,15 @@ public sealed class PriceCache
     public void SetFull(uint itemId, uint nqPrice, uint hqPrice, uint maxDcPrice, string maxDcPriceWorld,
         float nqVel, float hqVel, string source, TimeSpan ttl, uint dcMinPrice = 0)
     {
+        var existing = cache.TryGetValue(itemId, out var e) ? e : null;
         cache[itemId] = new CachedPrice
         {
             ItemId = itemId,
             NqPrice = nqPrice,
             HqPrice = hqPrice,
-            MaxDcPrice = maxDcPrice,
-            MaxDcPriceWorld = maxDcPriceWorld,
-            DcMinPrice = dcMinPrice,
+            MaxDcPrice = maxDcPrice > 0 ? maxDcPrice : (existing?.MaxDcPrice ?? 0),
+            MaxDcPriceWorld = maxDcPrice > 0 ? maxDcPriceWorld : (existing?.MaxDcPriceWorld ?? ""),
+            DcMinPrice = dcMinPrice > 0 ? dcMinPrice : (existing?.DcMinPrice ?? 0),
             NqSaleVelocity = nqVel,
             HqSaleVelocity = hqVel,
             Source = source,

@@ -40,7 +40,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool isRefreshingAll;
 
     /// <summary>Minimum seconds between refreshes to avoid API abuse.</summary>
-    private const int MinRefreshIntervalSeconds = 120;
+    private const int MinRefreshIntervalSeconds = 15;
 
     public Plugin(
         IDalamudPluginInterface pluginInterface,

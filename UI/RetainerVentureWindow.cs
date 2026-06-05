@@ -573,7 +573,7 @@ public sealed class RetainerVentureWindow : Window
 
     private void DrawDropsTable(Vector2 avail, uint bestDropItemId)
     {
-        if (!ImGui.BeginTable("DropsTable", 6,
+        if (!ImGui.BeginTable("DropsTable", 5,
             ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
             ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp,
             new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 30)))
@@ -581,8 +581,7 @@ public sealed class RetainerVentureWindow : Window
 
         ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 4f);
         ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.WidthStretch, 1f);
-        ImGui.TableSetupColumn("DC Lowest", ImGuiTableColumnFlags.WidthStretch, 1f);
-        ImGui.TableSetupColumn("DC Highest", ImGuiTableColumnFlags.WidthStretch, 1.2f);
+        ImGui.TableSetupColumn("DC Min", ImGuiTableColumnFlags.WidthStretch, 1f);
         ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthStretch, 0.6f);
         ImGui.TableSetupColumn("Notes", ImGuiTableColumnFlags.WidthStretch, 1.5f);
         ImGui.TableSetupScrollFreeze(0, 1);
@@ -594,8 +593,6 @@ public sealed class RetainerVentureWindow : Window
         {
             var cached = priceCache.GetIgnoreExpiry(drop.ItemId);
             var dcMin = cached?.DcMinPrice ?? 0;
-            var dcMax = cached?.MaxDcPrice ?? 0;
-            var dcMaxWorld = cached?.MaxDcPriceWorld ?? "";
             var vel = cached?.NqSaleVelocity ?? 0;
             var src = cached?.Source ?? "";
 
@@ -648,27 +645,19 @@ public sealed class RetainerVentureWindow : Window
 
             ImGui.TableSetColumnIndex(2);
             if (dcMin > 0)
-                ImGui.Text($"{dcMin:N0}");
-            else
-                ImGui.TextDisabled("—");
-
-            ImGui.TableSetColumnIndex(3);
-            if (dcMax > 0)
             {
-                ImGui.Text($"{dcMax:N0}");
-                if (!string.IsNullOrEmpty(dcMaxWorld))
-                {
-                    ImGui.SameLine();
-                    ImGui.TextDisabled(dcMaxWorld);
-                }
+                if (drop.Price > 0 && dcMin < drop.Price)
+                    ImGui.TextColored(new Vector4(0.4f, 0.7f, 0.4f, 1f), $"{dcMin:N0}");
+                else
+                    ImGui.Text($"{dcMin:N0}");
             }
             else
                 ImGui.TextDisabled("—");
 
-            ImGui.TableSetColumnIndex(4);
+            ImGui.TableSetColumnIndex(3);
             ImGui.TextDisabled(src.Length > 0 ? src : "—");
 
-            ImGui.TableSetColumnIndex(5);
+            ImGui.TableSetColumnIndex(4);
             if (isOutlier)
                 ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "Money transfer");
             else if (isLowVel)
