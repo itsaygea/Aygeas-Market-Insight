@@ -328,6 +328,17 @@ public sealed class RetainerVentureWindow : Window
 
     private void DrawExplorationControls()
     {
+        if (ImGui.Button("Refresh Prices##Ex"))
+            RefreshPrices();
+
+        if (isLoading)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled($"Updating... {loadingStatus}");
+        }
+
+        ImGui.Spacing();
+
         ImGui.SetNextItemWidth(200);
         if (ImGui.InputTextWithHint("##ExplorationSearch", "Search drops (minion, material...)", ref explorationSearch, 100))
             BuildExplorationRows();
