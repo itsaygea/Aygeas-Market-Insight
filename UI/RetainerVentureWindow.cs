@@ -426,35 +426,33 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableHeadersRow();
 
             // Pre-calculate best drop price per venture for profit coloring.
-            // Filter: (1) money-transfer outliers (world price >> DC cheapest),
-            // (2) dead items (0 DC velocity = nobody buys it anywhere on DC).
-            // Fallback to raw best if all items get filtered.
+            // Three tiers: (1) active (has velocity), (2) non-outlier (reasonable price),
+            // (3) nothing matched → show "—". Never fall back to outlier prices.
             var bestPrices = new float[filteredExplorations.Count];
             for (var i = 0; i < filteredExplorations.Count; i++)
             {
-                var maxP = 0u;
-                var rawMaxP = 0u;
+                var activeBest = 0u;   // passes outlier + velocity filter
+                var reasonBest = 0u;   // passes outlier but not velocity
                 foreach (var dropId in filteredExplorations[i].DropItemIds)
                 {
                     var cached = priceCache.GetIgnoreExpiry(dropId);
                     var p = cached?.NqPrice ?? 0;
                     if (p == 0) continue;
 
-                    if (p > rawMaxP) rawMaxP = p;
-
                     // Outlier: world price > 10x DC cheapest = likely money transfer
                     var dcMin = cached?.DcMinPrice ?? 0;
                     if (dcMin > 0 && p > dcMin * 10) continue;
+
+                    if (p > reasonBest) reasonBest = p;
 
                     // Dead item: 0 DC velocity = nobody buys it on entire data center
                     var vel = cached?.NqSaleVelocity ?? 0;
                     var src = cached?.Source ?? "";
                     if (vel == 0 && src != "MB") continue;
 
-                    if (p > maxP) maxP = p;
+                    if (p > activeBest) activeBest = p;
                 }
-                // Fallback: if filters removed everything, use raw best
-                bestPrices[i] = maxP > 0 ? maxP : rawMaxP;
+                bestPrices[i] = activeBest > 0 ? activeBest : reasonBest;
             }
             var topPrice = bestPrices.Length > 0 ? bestPrices.Max() : 0;
 
