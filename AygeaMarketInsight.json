@@ -4,12 +4,12 @@
   "Punchline": "Crafting profit tracker — compare craft cost vs market price.",
   "Description": "Crafting profit tracker — compare craft cost vs market price, scan for profitable recipes, and build shopping lists with max-price guidance. Made by Aygea (twitch.tv/crazyaygea)",
   "InternalName": "AygeaMarketInsight",
-  "AssemblyVersion": "1.0.3.15",
+  "AssemblyVersion": "1.0.3.16",
   "RepoUrl": "https://github.com/itsaygea/Aygeas-Market-Insight",
   "DonateButtonUrl": "https://ko-fi.com/aygea",
   "DalamudApiLevel": 15,
   "Tags": [ "market", "crafting", "profit", "tooltip", "shopping list", "universalis", "retainer" ],
   "ImageUrls": [],
   "IconUrl": "https://raw.githubusercontent.com/itsaygea/Aygeas-Market-Insight/main/icon.png",
-  "Changelog": "v1.0.3.14 — Color-coded exploration drops: gold names and green/blue prices for top-valued items."
+  "Changelog": "v1.0.3.16 — Fix exploration types (Woodland/BTN added), profit-colored venture names, Best Drop column."
 }

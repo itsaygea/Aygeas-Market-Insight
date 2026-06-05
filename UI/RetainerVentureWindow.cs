@@ -42,7 +42,7 @@ public sealed class RetainerVentureWindow : Window
     private int selectedExploration = -1;
     private string explorationSearch = string.Empty;
     private readonly HashSet<ExplorationType> enabledExplorationTypes =
-        [ExplorationType.Quick, ExplorationType.Highland, ExplorationType.Field, ExplorationType.Waterside];
+        [ExplorationType.Quick, ExplorationType.Highland, ExplorationType.Woodland, ExplorationType.Waterside, ExplorationType.Field];
     private int explorationLevelFilter = 100;
     private List<ExplorationVenture> filteredExplorations = [];
     private List<(uint ItemId, string Name, uint Price)> selectedDrops = [];
@@ -51,7 +51,7 @@ public sealed class RetainerVentureWindow : Window
         [("Combat", VentureType.Combat), ("BTN", VentureType.Botanist), ("MIN", VentureType.Miner), ("FSH", VentureType.Fisher)];
 
     private static readonly (string Name, ExplorationType Type)[] ExplorationTypeToggles =
-        [("Quick", ExplorationType.Quick), ("Highland", ExplorationType.Highland), ("Field", ExplorationType.Field), ("Waterside", ExplorationType.Waterside)];
+        [("Quick", ExplorationType.Quick), ("MIN", ExplorationType.Highland), ("BTN", ExplorationType.Woodland), ("FSH", ExplorationType.Waterside), ("Combat", ExplorationType.Field)];
 
     private static readonly Vector4 TabActiveColor = new(0.3f, 0.6f, 0.3f, 1f);
     private static readonly Vector4 TabInactiveColor = new(0.25f, 0.25f, 0.25f, 1f);
@@ -344,6 +344,14 @@ public sealed class RetainerVentureWindow : Window
             ImGui.BeginTooltip();
             ImGui.Text("Search filters by drop item names.");
             ImGui.Text("Click a venture row to see its drops below.");
+            ImGui.Spacing();
+            ImGui.Text("Name colors (by best drop value):");
+            ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("— Top value drops (80%+ of best)");
+            ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("— Good value drops (40%+ of best)");
             ImGui.EndTooltip();
         }
 
@@ -382,13 +390,27 @@ public sealed class RetainerVentureWindow : Window
             new Vector2(avail.X, tableHeight)))
         {
             ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 4f);
-            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthStretch, 1f);
+            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthStretch, 0.7f);
             ImGui.TableSetupColumn("Lv", ImGuiTableColumnFlags.WidthStretch, 0.5f);
-            ImGui.TableSetupColumn("Dur", ImGuiTableColumnFlags.WidthStretch, 1f);
-            ImGui.TableSetupColumn("XP", ImGuiTableColumnFlags.WidthStretch, 1f);
-            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.WidthStretch, 0.8f);
+            ImGui.TableSetupColumn("Best Drop", ImGuiTableColumnFlags.WidthStretch, 1f);
+            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.WidthStretch, 0.6f);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
+
+            // Pre-calculate best drop price per venture for profit coloring
+            var bestPrices = new float[filteredExplorations.Count];
+            for (var i = 0; i < filteredExplorations.Count; i++)
+            {
+                var maxP = 0u;
+                foreach (var dropId in filteredExplorations[i].DropItemIds)
+                {
+                    var cached = priceCache.GetIgnoreExpiry(dropId);
+                    var p = cached?.NqPrice ?? 0;
+                    if (p > maxP) maxP = p;
+                }
+                bestPrices[i] = maxP;
+            }
+            var topPrice = bestPrices.Length > 0 ? bestPrices.Max() : 0;
 
             for (var i = 0; i < filteredExplorations.Count; i++)
             {
@@ -410,21 +432,37 @@ public sealed class RetainerVentureWindow : Window
                         BuildSelectedDrops();
                 }
                 ImGui.SameLine();
-                ImGui.Text(ex.Name);
+
+                // Color venture name based on best drop value
+                var bestDrop = bestPrices[i];
+                if (bestDrop > 0 && topPrice > 0)
+                {
+                    var ratio = bestDrop / (float)topPrice;
+                    if (ratio >= 0.8f)
+                        ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), ex.Name); // green — top value
+                    else if (ratio >= 0.4f)
+                        ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), ex.Name); // blue — good value
+                    else
+                        ImGui.Text(ex.Name);
+                }
+                else
+                {
+                    ImGui.Text(ex.Name);
+                }
 
                 ImGui.TableSetColumnIndex(1);
-                ImGui.Text(ex.ExplorationType.ToString());
+                ImGui.Text(GetExplorationTypeLabel(ex.ExplorationType));
 
                 ImGui.TableSetColumnIndex(2);
                 ImGui.Text($"{ex.MaxLevel}");
 
                 ImGui.TableSetColumnIndex(3);
-                ImGui.Text(ex.DurationMinutes > 0 ? $"{ex.DurationMinutes / 60f:F1}h" : "—");
+                if (bestDrop > 0)
+                    ImGui.Text($"{bestDrop:N0}");
+                else
+                    ImGui.TextDisabled("—");
 
                 ImGui.TableSetColumnIndex(4);
-                ImGui.Text(ex.XpReward > 0 ? $"{ex.XpReward:N0}" : "—");
-
-                ImGui.TableSetColumnIndex(5);
                 ImGui.Text($"{ex.DropItemIds.Count}");
             }
 
@@ -525,6 +563,16 @@ public sealed class RetainerVentureWindow : Window
 
         ImGui.EndTable();
     }
+
+    private static string GetExplorationTypeLabel(ExplorationType type) => type switch
+    {
+        ExplorationType.Quick => "Quick",
+        ExplorationType.Highland => "MIN",
+        ExplorationType.Woodland => "BTN",
+        ExplorationType.Waterside => "FSH",
+        ExplorationType.Field => "Combat",
+        _ => type.ToString(),
+    };
 
     // ── Data Building ──────────────────────────────────────────────
 

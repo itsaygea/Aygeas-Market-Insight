@@ -9,7 +9,7 @@ using Lumina.Excel.Sheets;
 namespace AygeaMarketInsight;
 
 public enum VentureType { Combat, Botanist, Miner, Fisher }
-public enum ExplorationType { Quick, Highland, Field, Waterside }
+public enum ExplorationType { Quick, Highland, Woodland, Waterside, Field }
 
 public sealed class VentureInfo
 {
@@ -219,8 +219,9 @@ public sealed class VentureCache
     {
         if (name.Contains("Quick")) return ExplorationType.Quick;
         if (name.Contains("Highland")) return ExplorationType.Highland;
-        if (name.Contains("Field") || name.Contains("Woodland")) return ExplorationType.Field;
+        if (name.Contains("Woodland")) return ExplorationType.Woodland;
         if (name.Contains("Waterside")) return ExplorationType.Waterside;
+        if (name.Contains("Field")) return ExplorationType.Field;
         return ExplorationType.Quick;
     }
 
