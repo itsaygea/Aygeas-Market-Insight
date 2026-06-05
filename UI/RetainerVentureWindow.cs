@@ -426,7 +426,8 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableHeadersRow();
 
             // Pre-calculate best drop price per venture for profit coloring.
-            // Filter out money-transfer outliers (world price >> DC cheapest).
+            // Filter: (1) money-transfer outliers (world price >> DC cheapest),
+            // (2) dead items (0 DC velocity = nobody buys it anywhere on DC).
             // Fallback to raw best if all items get filtered.
             var bestPrices = new float[filteredExplorations.Count];
             for (var i = 0; i < filteredExplorations.Count; i++)
@@ -445,9 +446,14 @@ public sealed class RetainerVentureWindow : Window
                     var dcMin = cached?.DcMinPrice ?? 0;
                     if (dcMin > 0 && p > dcMin * 10) continue;
 
+                    // Dead item: 0 DC velocity = nobody buys it on entire data center
+                    var vel = cached?.NqSaleVelocity ?? 0;
+                    var src = cached?.Source ?? "";
+                    if (vel == 0 && src != "MB") continue;
+
                     if (p > maxP) maxP = p;
                 }
-                // Fallback: if outlier filter removed everything, use raw best
+                // Fallback: if filters removed everything, use raw best
                 bestPrices[i] = maxP > 0 ? maxP : rawMaxP;
             }
             var topPrice = bestPrices.Length > 0 ? bestPrices.Max() : 0;

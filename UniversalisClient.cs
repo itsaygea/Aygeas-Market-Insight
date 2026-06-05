@@ -140,8 +140,9 @@ public sealed class UniversalisClient : IDisposable
     private static float GetVelocity(JsonElement quality)
     {
         if (!quality.TryGetProperty("dailySaleVelocity", out var vel)) return 0;
-        if (!vel.TryGetProperty("world", out var world)) return 0;
-        if (!world.TryGetProperty("quantity", out var q)) return 0;
+        // Aggregated endpoint returns dc-level velocity, not per-world
+        if (!vel.TryGetProperty("dc", out var dc)) return 0;
+        if (!dc.TryGetProperty("quantity", out var q)) return 0;
         return q.ValueKind == JsonValueKind.Null ? 0 : q.GetSingle();
     }
 
