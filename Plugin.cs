@@ -274,8 +274,9 @@ public sealed class Plugin : IDalamudPlugin
                     foreach (var kvp in results)
                     {
                         var p = kvp.Value;
-                        priceCache.Set(kvp.Key, p.NqPrice, p.HqPrice, p.Source,
-                            TimeSpan.FromMinutes(ttl));
+                        priceCache.SetFull(kvp.Key, p.NqPrice, p.HqPrice,
+                            0, string.Empty, p.NqSaleVelocity, p.HqSaleVelocity,
+                            p.Source, TimeSpan.FromMinutes(ttl));
                     }
 
                     priceCache.SaveToFile(cacheFilePath);

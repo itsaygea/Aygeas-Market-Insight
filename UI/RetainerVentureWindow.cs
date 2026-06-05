@@ -229,6 +229,10 @@ public sealed class RetainerVentureWindow : Window
 
             ImGui.TableSetColumnIndex(0);
             ImGui.Text(row.ItemName);
+            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                ImGui.SetClipboardText(row.ItemName);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Double-click to copy");
 
             ImGui.TableSetColumnIndex(1);
             ImGui.Text(row.TypeName);
@@ -376,7 +380,9 @@ public sealed class RetainerVentureWindow : Window
     private void DrawExplorationSplit()
     {
         var avail = ImGui.GetContentRegionAvail();
-        var tableHeight = selectedExploration >= 0 ? avail.Y * 0.45f : avail.Y - 5;
+        // Reserve 25px at bottom for the shared status bar
+        var usableHeight = avail.Y - 25;
+        var tableHeight = selectedExploration >= 0 ? usableHeight * 0.45f : usableHeight - 5;
 
         // Venture table (top half)
         var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
@@ -407,16 +413,6 @@ public sealed class RetainerVentureWindow : Window
                     var p = cached?.NqPrice ?? 0;
                     var vel = cached?.NqSaleVelocity ?? 0;
                     if (p > maxP && vel > 0) maxP = p;
-                }
-                // Fallback: if nothing has velocity, use highest priced item anyway
-                if (maxP == 0)
-                {
-                    foreach (var dropId in filteredExplorations[i].DropItemIds)
-                    {
-                        var cached = priceCache.GetIgnoreExpiry(dropId);
-                        var p = cached?.NqPrice ?? 0;
-                        if (p > maxP) maxP = p;
-                    }
                 }
                 bestPrices[i] = maxP;
             }
@@ -550,6 +546,10 @@ public sealed class RetainerVentureWindow : Window
                 ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), drop.Name); // gold
             else
                 ImGui.Text(drop.Name);
+            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                ImGui.SetClipboardText(drop.Name);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Double-click to copy");
 
             ImGui.TableSetColumnIndex(1);
             if (drop.Price > 0)
