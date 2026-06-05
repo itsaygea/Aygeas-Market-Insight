@@ -83,6 +83,21 @@ public sealed class RetainerVentureWindow : Window
 
         var ago = lastRefreshTime == default ? "never" : $"{(DateTime.UtcNow - lastRefreshTime).TotalMinutes:F0}m ago";
         ImGui.TextDisabled($"Last refreshed: {ago}  |  {rows.Count} ventures");
+
+        ImGui.SameLine();
+        ImGui.TextColored(new System.Numerics.Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.BeginTooltip();
+            ImGui.Text("Color highlights:");
+            ImGui.TextColored(new System.Numerics.Vector4(0f, 0.8f, 0f, 1f), "  Green");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("— Highest Gil/Hr venture");
+            ImGui.TextColored(new System.Numerics.Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("— Highest XP reward");
+            ImGui.EndTooltip();
+        }
     }
 
     private void DrawControls()

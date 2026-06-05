@@ -44,7 +44,16 @@ public sealed class HubWindow : Window
 
         ImGui.Spacing();
         ImGui.Separator();
-        ImGui.TextDisabled("/ami scan  /ami list  /ami config  /ami detail");
+
+        // Social buttons
+        DrawLinkButton("Watch on Twitch", "https://twitch.tv/crazyaygea", 0xFF9146FF);
+        ImGui.SameLine();
+        DrawLinkButton("itsaygea.com", "https://itsaygea.com", 0xFFFF69B4);
+        ImGui.SameLine();
+        DrawLinkButton("Support on Ko-fi", "https://ko-fi.com/aygea", 0xFFFF5E5B);
+
+        ImGui.Spacing();
+        ImGui.TextDisabled("/ami scan  /ami list  /ami config  /ami r");
     }
 
     private static void DrawNavButton(string label, string description, System.Action? onClick)
@@ -64,5 +73,27 @@ public sealed class HubWindow : Window
 
         // Restore cursor below button
         ImGui.SetCursorPos(new System.Numerics.Vector2(cursor.X, cursor.Y + 4));
+    }
+
+    private static void DrawLinkButton(string label, string url, uint color)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Button, ImGui.ColorConvertU32ToFloat4(color));
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.ColorConvertU32ToFloat4(Lighten(color)));
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.ColorConvertU32ToFloat4(color));
+
+        if (ImGui.Button(label))
+            Dalamud.Utility.Util.OpenLink(url);
+
+        ImGui.PopStyleColor(3);
+    }
+
+    private static uint Lighten(uint abgr)
+    {
+        var v = ImGui.ColorConvertU32ToFloat4(abgr);
+        return ImGui.ColorConvertFloat4ToU32(new System.Numerics.Vector4(
+            Math.Min(v.X + 0.15f, 1f),
+            Math.Min(v.Y + 0.15f, 1f),
+            Math.Min(v.Z + 0.15f, 1f),
+            v.W));
     }
 }
