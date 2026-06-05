@@ -46,11 +46,11 @@ public sealed class HubWindow : Window
         ImGui.Separator();
 
         // Social buttons
-        DrawLinkButton("Watch on Twitch", "https://twitch.tv/crazyaygea", 0xFF9146FF);
+        DrawLinkButton("Watch on Twitch", "https://twitch.tv/crazyaygea", 0xFFFF4691);
         ImGui.SameLine();
-        DrawLinkButton("itsaygea.com", "https://itsaygea.com", 0xFFFF69B4);
+        DrawLinkButton("itsaygea.com", "https://itsaygea.com", 0xFFF0CF89);
         ImGui.SameLine();
-        DrawLinkButton("Support on Ko-fi", "https://ko-fi.com/aygea", 0xFFFF5E5B);
+        DrawLinkButton("Support on Ko-fi", "https://ko-fi.com/aygea", 0xFF5B5EFF);
 
         ImGui.Spacing();
         ImGui.TextDisabled("/ami scan  /ami list  /ami config  /ami r");

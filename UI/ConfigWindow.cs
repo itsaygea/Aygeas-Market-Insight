@@ -221,19 +221,19 @@ public sealed class ConfigWindow : Window
 
         // Twitch button — purple #9146FF
         DrawLinkButton("Watch on Twitch", "https://twitch.tv/crazyaygea",
-            0xFF9146FF);
+            0xFFFF4691);
 
         ImGui.SameLine();
 
-        // Website button — teal #00b4b4
+        // Website button — baby blue #89CFF0
         DrawLinkButton("itsaygea.com", "https://itsaygea.com",
-            0xFF00B4B4);
+            0xFFF0CF89);
 
         ImGui.Spacing();
 
-        // Ko-fi button — orange #FF5E5B
+        // Ko-fi button — coral #FF5E5B
         DrawLinkButton("Support on Ko-fi", "https://ko-fi.com/aygea",
-            0xFFFF5E5B);
+            0xFF5B5EFF);
 
         ImGui.SameLine();
 
