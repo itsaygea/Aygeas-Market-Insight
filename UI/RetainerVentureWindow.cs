@@ -362,17 +362,17 @@ public sealed class RetainerVentureWindow : Window
         // Venture table (top half)
         var flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY |
                     ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.Resizable |
-                    ImGuiTableFlags.SizingFixedFit;
+                    ImGuiTableFlags.SizingStretchProp;
 
         if (ImGui.BeginTable("ExplorationTable", 6, flags,
             new Vector2(avail.X, tableHeight)))
         {
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch);
-            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.None, 55);
-            ImGui.TableSetupColumn("Lv", ImGuiTableColumnFlags.None, 30);
-            ImGui.TableSetupColumn("Dur", ImGuiTableColumnFlags.None, 40);
-            ImGui.TableSetupColumn("XP", ImGuiTableColumnFlags.None, 50);
-            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.None, 45);
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 4f);
+            ImGui.TableSetupColumn("Type", ImGuiTableColumnFlags.WidthStretch, 1f);
+            ImGui.TableSetupColumn("Lv", ImGuiTableColumnFlags.WidthStretch, 0.5f);
+            ImGui.TableSetupColumn("Dur", ImGuiTableColumnFlags.WidthStretch, 1f);
+            ImGui.TableSetupColumn("XP", ImGuiTableColumnFlags.WidthStretch, 1f);
+            ImGui.TableSetupColumn("Drops", ImGuiTableColumnFlags.WidthStretch, 0.8f);
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableHeadersRow();
 
@@ -434,13 +434,13 @@ public sealed class RetainerVentureWindow : Window
     {
         if (!ImGui.BeginTable("DropsTable", 3,
             ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingFixedFit,
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp,
             new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 5)))
             return;
 
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.None, 80);
-        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.None, 65);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 5f);
+        ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.WidthStretch, 1f);
+        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthStretch, 1f);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
 
