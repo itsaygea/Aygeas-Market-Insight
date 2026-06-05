@@ -24,7 +24,7 @@ public sealed class RetainerVentureWindow : Window
     private DateTime lastRefreshTime;
 
     // Filters
-    private int selectedType = -1; // -1 = All
+    private readonly HashSet<VentureType> enabledTypes = [VentureType.Combat, VentureType.Botanist, VentureType.Miner, VentureType.Fisher];
     private int levelFilter = 100;
     private int minGilPerHour;
 
@@ -32,8 +32,8 @@ public sealed class RetainerVentureWindow : Window
     private ImGuiSortDirection sortDirection;
     private int sortColumn = 7; // Gil/Hr by default
 
-    private static readonly string[] TypeNames = ["All", "Combat", "Botanist", "Miner", "Fisher"];
-    private static readonly VentureType?[] TypeFilters = [null, VentureType.Combat, VentureType.Botanist, VentureType.Miner, VentureType.Fisher];
+    private static readonly (string Name, VentureType Type)[] TypeToggles =
+        [("Combat", VentureType.Combat), ("BTN", VentureType.Botanist), ("MIN", VentureType.Miner), ("FSH", VentureType.Fisher)];
 
     public RetainerVentureWindow(
         Configuration config,
@@ -107,17 +107,33 @@ public sealed class RetainerVentureWindow : Window
 
         ImGui.SameLine();
         ImGui.SetNextItemWidth(100);
-        if (ImGui.Combo("Type", ref selectedType, TypeNames, TypeNames.Length))
-            BuildRows();
-
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(100);
         if (ImGui.SliderInt("Max Level", ref levelFilter, 1, 100))
             BuildRows();
 
         ImGui.SameLine();
         ImGui.SetNextItemWidth(120);
         ImGui.InputInt("Min Gil/Hr", ref minGilPerHour, 100);
+
+        // Toggle buttons for venture types
+        ImGui.Spacing();
+        foreach (var (name, type) in TypeToggles)
+        {
+            var enabled = enabledTypes.Contains(type);
+            ImGui.PushStyleColor(ImGuiCol.Button,
+                enabled ? new System.Numerics.Vector4(0.3f, 0.6f, 0.3f, 1f) : new System.Numerics.Vector4(0.3f, 0.3f, 0.3f, 1f));
+
+            if (ImGui.SmallButton(name))
+            {
+                if (enabled) enabledTypes.Remove(type);
+                else enabledTypes.Add(type);
+                BuildRows();
+            }
+
+            ImGui.PopStyleColor();
+            ImGui.SameLine();
+        }
+
+        ImGui.NewLine();
     }
 
     private void DrawTable()
@@ -243,10 +259,8 @@ public sealed class RetainerVentureWindow : Window
     {
         rows.Clear();
 
-        var typeFilter = selectedType >= 0 && selectedType < TypeFilters.Length
-            ? TypeFilters[selectedType] : null;
-
-        var ventures = ventureCache.GetVenturesForLevel((byte)levelFilter, typeFilter);
+        var ventures = ventureCache.GetVenturesForLevel((byte)levelFilter)
+            .Where(v => enabledTypes.Contains(v.Type));
 
         foreach (var v in ventures)
         {
