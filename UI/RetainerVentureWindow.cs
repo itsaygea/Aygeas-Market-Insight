@@ -517,13 +517,30 @@ public sealed class RetainerVentureWindow : Window
         if (selectedExploration >= 0 && selectedExploration < filteredExplorations.Count)
         {
             var ex = filteredExplorations[selectedExploration];
+
+            // Find which item is the actual Best Drop (same tiered logic as the top table)
+            uint activeBestId = 0, activeBestPrice = 0;
+            uint reasonBestId = 0, reasonBestPrice = 0;
+            foreach (var dropId in ex.DropItemIds)
+            {
+                var cached = priceCache.GetIgnoreExpiry(dropId);
+                var p = cached?.NqPrice ?? 0;
+                if (p == 0) continue;
+                var dcMin = cached?.DcMinPrice ?? 0;
+                if (dcMin > 0 && p > dcMin * 10) continue;
+                if (p > reasonBestPrice) { reasonBestPrice = p; reasonBestId = dropId; }
+                var vel = cached?.NqSaleVelocity ?? 0;
+                var src = cached?.Source ?? "";
+                if (vel == 0 && src != "MB") continue;
+                if (p > activeBestPrice) { activeBestPrice = p; activeBestId = dropId; }
+            }
+            var bestDropItemId = activeBestPrice > 0 ? activeBestId : reasonBestId;
+
             ImGui.Separator();
             ImGui.Text($"Drops from: {ex.Name}");
             ImGui.SameLine();
             ImGui.TextDisabled($"({selectedDrops.Count} items)");
 
-            // Show value summary
-            var totalPrice = selectedDrops.Sum(d => d.Price);
             var pricedCount = selectedDrops.Count(d => d.Price > 0);
             if (pricedCount > 0)
             {
@@ -538,50 +555,67 @@ public sealed class RetainerVentureWindow : Window
             {
                 ImGui.BeginTooltip();
                 ImGui.Text("Color highlights:");
-                ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green");
+                ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green row");
                 ImGui.SameLine();
-                ImGui.TextUnformatted("— Highest priced drop");
-                ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
+                ImGui.TextUnformatted("— Best Drop (matches top table)");
+                ImGui.TextColored(new Vector4(0.6f, 0.3f, 0.3f, 1f), "  Red text");
                 ImGui.SameLine();
-                ImGui.TextUnformatted("— Top 3 valued drops");
-                ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), "  Gold");
+                ImGui.TextUnformatted("— Outlier / money transfer");
+                ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "  Orange notes");
                 ImGui.SameLine();
-                ImGui.TextUnformatted("— Top 3 item names");
+                ImGui.TextUnformatted("— Low velocity or filtered");
                 ImGui.EndTooltip();
             }
 
-            DrawDropsTable(avail);
+            DrawDropsTable(avail, bestDropItemId);
         }
     }
 
-    private void DrawDropsTable(Vector2 avail)
+    private void DrawDropsTable(Vector2 avail, uint bestDropItemId)
     {
-        if (!ImGui.BeginTable("DropsTable", 3,
+        if (!ImGui.BeginTable("DropsTable", 6,
             ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY | ImGuiTableFlags.BordersInnerV |
             ImGuiTableFlags.Resizable | ImGuiTableFlags.SizingStretchProp,
             new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 30)))
             return;
 
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 5f);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 4f);
         ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.WidthStretch, 1f);
-        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthStretch, 1f);
+        ImGui.TableSetupColumn("DC Lowest", ImGuiTableColumnFlags.WidthStretch, 1f);
+        ImGui.TableSetupColumn("DC Highest", ImGuiTableColumnFlags.WidthStretch, 1.2f);
+        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthStretch, 0.6f);
+        ImGui.TableSetupColumn("Notes", ImGuiTableColumnFlags.WidthStretch, 1.5f);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
 
-        // Sort by price descending and find top tiers for highlighting
         var sorted = selectedDrops.OrderByDescending(d => d.Price).ToList();
-        var top3Cutoff = sorted.Count > 3 ? sorted[2].Price : (sorted.Count > 0 ? sorted[^1].Price : 0);
-        var maxPrice = sorted.Count > 0 ? sorted[0].Price : 0;
 
         foreach (var drop in sorted)
         {
+            var cached = priceCache.GetIgnoreExpiry(drop.ItemId);
+            var dcMin = cached?.DcMinPrice ?? 0;
+            var dcMax = cached?.MaxDcPrice ?? 0;
+            var dcMaxWorld = cached?.MaxDcPriceWorld ?? "";
+            var vel = cached?.NqSaleVelocity ?? 0;
+            var src = cached?.Source ?? "";
+
+            var isOutlier = dcMin > 0 && drop.Price > dcMin * 10;
+            var isLowVel = vel == 0 && src != "MB" && drop.Price > 0;
+            var isBestDrop = drop.ItemId == bestDropItemId;
+
             ImGui.TableNextRow();
 
-            ImGui.TableSetColumnIndex(0);
+            if (isBestDrop)
+            {
+                ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0,
+                    ImGui.ColorConvertFloat4ToU32(new Vector4(0.2f, 0.4f, 0.2f, 0.4f)));
+            }
 
-            // Color the item name for top-valued drops
-            if (drop.Price > 0 && drop.Price >= top3Cutoff && maxPrice > 0)
-                ImGui.TextColored(new Vector4(1f, 0.85f, 0.2f, 1f), drop.Name); // gold
+            ImGui.TableSetColumnIndex(0);
+            if (isBestDrop)
+                ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), drop.Name);
+            else if (isOutlier)
+                ImGui.TextColored(new Vector4(0.6f, 0.3f, 0.3f, 1f), drop.Name);
             else
                 ImGui.Text(drop.Name);
             if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
@@ -600,10 +634,10 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableSetColumnIndex(1);
             if (drop.Price > 0)
             {
-                if (drop.Price == maxPrice && maxPrice > 0)
-                    ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), $"{drop.Price:N0}"); // green — best
-                else if (drop.Price >= top3Cutoff && maxPrice > 0)
-                    ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), $"{drop.Price:N0}"); // blue — top 3
+                if (isOutlier)
+                    ImGui.TextColored(new Vector4(0.6f, 0.3f, 0.3f, 1f), $"{drop.Price:N0}");
+                else if (isBestDrop)
+                    ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), $"{drop.Price:N0}");
                 else
                     ImGui.Text($"{drop.Price:N0}");
             }
@@ -613,8 +647,34 @@ public sealed class RetainerVentureWindow : Window
             }
 
             ImGui.TableSetColumnIndex(2);
-            var cached = priceCache.GetIgnoreExpiry(drop.ItemId);
-            ImGui.TextDisabled(cached?.Source ?? "—");
+            if (dcMin > 0)
+                ImGui.Text($"{dcMin:N0}");
+            else
+                ImGui.TextDisabled("—");
+
+            ImGui.TableSetColumnIndex(3);
+            if (dcMax > 0)
+            {
+                ImGui.Text($"{dcMax:N0}");
+                if (!string.IsNullOrEmpty(dcMaxWorld))
+                {
+                    ImGui.SameLine();
+                    ImGui.TextDisabled(dcMaxWorld);
+                }
+            }
+            else
+                ImGui.TextDisabled("—");
+
+            ImGui.TableSetColumnIndex(4);
+            ImGui.TextDisabled(src.Length > 0 ? src : "—");
+
+            ImGui.TableSetColumnIndex(5);
+            if (isOutlier)
+                ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "Money transfer");
+            else if (isLowVel)
+                ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "Low velocity");
+            else
+                ImGui.TextDisabled("—");
         }
 
         ImGui.EndTable();
