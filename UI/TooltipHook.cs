@@ -20,6 +20,7 @@ public sealed class TooltipHook : IDisposable
     private readonly IObjectTable objectTable;
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private readonly InventoryScanner inventoryScanner;
     private CancellationTokenSource? hoverCts;
 
     private uint hoveredItemId;

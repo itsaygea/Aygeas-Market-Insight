@@ -24,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IObjectTable objectTable;
     private readonly IPluginLog log;
     private readonly IDataManager dataManager;
+    private readonly IClientState clientState;
     private readonly IFramework framework;
 
     private readonly Configuration config;

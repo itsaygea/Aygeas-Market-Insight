@@ -105,7 +105,7 @@ public class Configuration : IPluginConfiguration
         // Validate shopping list settings
         config.RememberPinState = ValidateBool(config.RememberPinState, nameof(config.RememberPinState));
         config.PinnedWindowOpacity = ValidateRange(config.PinnedWindowOpacity, 0.1f, 1.0f, nameof(config.PinnedWindowOpacity));
-        config.ResolveSubRecipesRecursively = ValidateBool(config.ResolveSubRecipesRecursively, nameof(config.ResolveSubRecipesRecursives));
+        config.ResolveSubRecipesRecursively = ValidateBool(config.ResolveSubRecipesRecursively, nameof(config.ResolveSubRecipesRecursively));
         config.HighlightOverBudgetIngredients = ValidateBool(config.HighlightOverBudgetIngredients, nameof(config.HighlightOverBudgetIngredients));
         config.TargetProfitMargin = ValidateRange(config.TargetProfitMargin, 0f, 1.0f, nameof(config.TargetProfitMargin));
         config.EnableInventoryScanning = ValidateBool(config.EnableInventoryScanning, nameof(config.EnableInventoryScanning));
