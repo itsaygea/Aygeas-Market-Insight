@@ -61,7 +61,7 @@ public sealed class PriceCache
     }
 
     public void SetFull(uint itemId, uint nqPrice, uint hqPrice, uint maxDcPrice, string maxDcPriceWorld,
-        float nqVel, float hqVel, string source, TimeSpan ttl, uint dcMinPrice = 0)
+        float nqVel, float hqVel, string source, TimeSpan ttl, uint dcMinPrice = 0, string dcMinPriceWorld = "")
     {
         var existing = cache.TryGetValue(itemId, out var e) ? e : null;
         cache[itemId] = new CachedPrice
@@ -72,6 +72,7 @@ public sealed class PriceCache
             MaxDcPrice = maxDcPrice > 0 ? maxDcPrice : (existing?.MaxDcPrice ?? 0),
             MaxDcPriceWorld = maxDcPrice > 0 ? maxDcPriceWorld : (existing?.MaxDcPriceWorld ?? ""),
             DcMinPrice = dcMinPrice > 0 ? dcMinPrice : (existing?.DcMinPrice ?? 0),
+            DcMinPriceWorld = dcMinPrice > 0 ? dcMinPriceWorld : (existing?.DcMinPriceWorld ?? ""),
             NqSaleVelocity = nqVel,
             HqSaleVelocity = hqVel,
             Source = source,
@@ -234,6 +235,8 @@ public sealed class CachedPrice
     public string MaxDcPriceWorld { get; set; } = string.Empty;
     /// <summary>Cheapest NQ listing across the entire data center (for outlier detection).</summary>
     public uint DcMinPrice { get; set; }
+    /// <summary>World name with the cheapest DC listing.</summary>
+    public string DcMinPriceWorld { get; set; } = string.Empty;
     public float NqSaleVelocity { get; set; }
     public float HqSaleVelocity { get; set; }
     public DateTime ExpiresAt { get; set; }

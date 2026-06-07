@@ -439,7 +439,7 @@ public sealed class RetainerVentureWindow : Window
                     var p = cached?.NqPrice ?? 0;
                     if (p == 0) continue;
 
-                    // Outlier: world price > 10x DC cheapest = likely money transfer
+                    // Outlier: world price > 10x DC cheapest = price spread too high
                     var dcMin = cached?.DcMinPrice ?? 0;
                     if (dcMin > 0 && p > dcMin * 10) continue;
 
@@ -560,7 +560,7 @@ public sealed class RetainerVentureWindow : Window
                 ImGui.TextUnformatted("— Best Drop (matches top table)");
                 ImGui.TextColored(new Vector4(0.6f, 0.3f, 0.3f, 1f), "  Red text");
                 ImGui.SameLine();
-                ImGui.TextUnformatted("— Outlier / money transfer");
+                ImGui.TextUnformatted("— Price spread too high");
                 ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "  Orange notes");
                 ImGui.SameLine();
                 ImGui.TextUnformatted("— Low velocity or filtered");
@@ -579,9 +579,9 @@ public sealed class RetainerVentureWindow : Window
             new Vector2(avail.X, ImGui.GetContentRegionAvail().Y - 30)))
             return;
 
-        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 4f);
+        ImGui.TableSetupColumn("Item", ImGuiTableColumnFlags.WidthStretch, 2.5f);
         ImGui.TableSetupColumn("MB Price", ImGuiTableColumnFlags.WidthStretch, 1f);
-        ImGui.TableSetupColumn("DC Min", ImGuiTableColumnFlags.WidthStretch, 1f);
+        ImGui.TableSetupColumn("DC Min", ImGuiTableColumnFlags.WidthStretch, 1.3f);
         ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthStretch, 0.6f);
         ImGui.TableSetupColumn("Notes", ImGuiTableColumnFlags.WidthStretch, 1.5f);
         ImGui.TableSetupScrollFreeze(0, 1);
@@ -593,6 +593,7 @@ public sealed class RetainerVentureWindow : Window
         {
             var cached = priceCache.GetIgnoreExpiry(drop.ItemId);
             var dcMin = cached?.DcMinPrice ?? 0;
+            var dcMinWorld = cached?.DcMinPriceWorld ?? "";
             var vel = cached?.NqSaleVelocity ?? 0;
             var src = cached?.Source ?? "";
 
@@ -646,10 +647,11 @@ public sealed class RetainerVentureWindow : Window
             ImGui.TableSetColumnIndex(2);
             if (dcMin > 0)
             {
+                var dcMinText = dcMinWorld.Length > 0 ? $"{dcMin:N0} ({dcMinWorld})" : $"{dcMin:N0}";
                 if (drop.Price > 0 && dcMin < drop.Price)
-                    ImGui.TextColored(new Vector4(0.4f, 0.7f, 0.4f, 1f), $"{dcMin:N0}");
+                    ImGui.TextColored(new Vector4(0.4f, 0.7f, 0.4f, 1f), dcMinText);
                 else
-                    ImGui.Text($"{dcMin:N0}");
+                    ImGui.Text(dcMinText);
             }
             else
                 ImGui.TextDisabled("—");
@@ -659,7 +661,7 @@ public sealed class RetainerVentureWindow : Window
 
             ImGui.TableSetColumnIndex(4);
             if (isOutlier)
-                ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "Money transfer");
+                ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "Price spread too high");
             else if (isLowVel)
                 ImGui.TextColored(new Vector4(0.8f, 0.6f, 0.2f, 1f), "Low velocity");
             else
@@ -694,7 +696,7 @@ public sealed class RetainerVentureWindow : Window
             var mbPrice = cached?.NqPrice ?? 0;
             var velocity = cached?.NqSaleVelocity ?? 0;
 
-            // Zero out obvious outliers (money transfers): world price > 10x DC cheapest
+            // Zero out obvious outliers (price spread too high): world price > 10x DC cheapest
             var dcMin = cached?.DcMinPrice ?? 0;
             if (dcMin > 0 && mbPrice > dcMin * 10)
                 mbPrice = 0;

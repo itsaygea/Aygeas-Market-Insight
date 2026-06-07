@@ -78,12 +78,14 @@ public sealed class UniversalisClient : IDisposable
 
                     uint nqWorld = 0, hqWorld = 0, nqDc = 0, hqDc = 0;
                     float nqVel = 0, hqVel = 0;
+                    string nqDcWorld = string.Empty;
 
                     if (item.TryGetProperty("nq", out var nq) &&
                         nq.TryGetProperty("minListing", out var nqListing))
                     {
                         nqWorld = GetPrice(nqListing, "world");
                         nqDc = GetPrice(nqListing, "dc");
+                        nqDcWorld = GetWorldName(nqListing, "dc");
                     }
 
                     if (item.TryGetProperty("hq", out var hq) &&
@@ -106,6 +108,7 @@ public sealed class UniversalisClient : IDisposable
                         HqPrice = hqWorld > 0 ? hqWorld : hqDc,
                         NqDcPrice = nqDc,
                         HqDcPrice = hqDc,
+                        NqDcPriceWorld = nqDcWorld,
                         NqSaleVelocity = nqVel,
                         HqSaleVelocity = hqVel,
                         Source = "Universalis",
@@ -128,6 +131,13 @@ public sealed class UniversalisClient : IDisposable
         }
 
         return results;
+    }
+
+    private static string GetWorldName(JsonElement listing, string scope)
+    {
+        if (!listing.TryGetProperty(scope, out var el)) return string.Empty;
+        if (!el.TryGetProperty("worldName", out var w)) return string.Empty;
+        return w.ValueKind == JsonValueKind.Null ? string.Empty : w.GetString() ?? string.Empty;
     }
 
     private static uint GetPrice(JsonElement listing, string scope)
@@ -230,6 +240,7 @@ public sealed class UniversalisItemPrice
     public uint HqPrice { get; set; }
     public uint NqDcPrice { get; set; }
     public uint HqDcPrice { get; set; }
+    public string NqDcPriceWorld { get; set; } = string.Empty;
     public float NqSaleVelocity { get; set; }
     public float HqSaleVelocity { get; set; }
     public uint MaxDcPrice { get; set; }

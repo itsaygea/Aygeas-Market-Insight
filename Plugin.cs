@@ -276,7 +276,7 @@ public sealed class Plugin : IDalamudPlugin
                         var p = kvp.Value;
                         priceCache.SetFull(kvp.Key, p.NqPrice, p.HqPrice,
                             0, string.Empty, p.NqSaleVelocity, p.HqSaleVelocity,
-                            p.Source, TimeSpan.FromMinutes(ttl), p.NqDcPrice);
+                            p.Source, TimeSpan.FromMinutes(ttl), p.NqDcPrice, p.NqDcPriceWorld);
                     }
 
                     priceCache.SaveToFile(cacheFilePath);
