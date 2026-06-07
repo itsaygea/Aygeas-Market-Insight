@@ -6,6 +6,7 @@ using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
+using AygeaMarketInsight;
 
 namespace AygeaMarketInsight.UI;
 
@@ -18,6 +19,7 @@ public sealed class ShoppingListWindow : Window
     private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
     private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
+    private readonly InventoryScanner inventoryScanner;
 
     private bool showConfirmClear;
     private bool isLoading;
@@ -32,7 +34,8 @@ public sealed class ShoppingListWindow : Window
         INotificationManager notificationManager,
         IFramework framework,
         IPluginLog log,
-        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
+        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll,
+        InventoryScanner inventoryScanner)
         : base("Aygea's Market Insight — Shopping List###AMIShoppingList")
     {
         this.config = config;
@@ -42,6 +45,7 @@ public sealed class ShoppingListWindow : Window
         this.notificationManager = notificationManager;
         this.log = log;
         this.refreshAll = refreshAll;
+        this.inventoryScanner = inventoryScanner;
 
         Size = new System.Numerics.Vector2(600, 550);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -126,6 +130,36 @@ public sealed class ShoppingListWindow : Window
 
         if (ImGui.SmallButton("Refresh Prices##SL"))
             RefreshPrices();
+        
+        if (config.EnableInventoryScanning)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Scan Inventory##SL"))
+            {
+                // Request inventory scan for items in shopping list
+                var itemsToScan = new HashSet<uint>();
+                foreach (var entry in config.ShoppingListItems)
+                {
+                    var recipe = recipeCache.GetRecipe(entry.RecipeId);
+                    if (recipe != null)
+                    {
+                        var r = recipe.Value;
+                        for (int i = 0; i < 8; i++)
+                        {
+                            var itemId = r.Ingredient[i].RowId;
+                            var amount = (int)r.AmountIngredient[i];
+                            if (amount > 0 && itemId != 0)
+                                itemsToScan.Add(itemId);
+                        }
+                    }
+                }
+                
+                inventoryScanner.TrackItems(itemsToScan);
+                inventoryScanner.RequestScan(true); // Force scan
+            }
+            ImGui.SameLine();
+            ImGui.TextDisabled("(Scan for crafting materials)");
+        }
 
         DrawMarginControl();
         ImGui.Separator();
@@ -278,12 +312,30 @@ public sealed class ShoppingListWindow : Window
                     var overBudget = maxPrice > 0 && bestPrice > maxPrice;
                     var matName = recipeCache.GetItemName(ing.ItemId);
 
+                    // Show inventory count if scanning is enabled
+                    string inventoryInfo = "";
+                    if (config.EnableInventoryScanning)
+                    {
+                        uint have = inventoryScanner.GetItemQuantity(ing.ItemId);
+                        uint need = (uint)qty;
+                        bool haveEnough = have >= need;
+                        
+                        if (haveEnough)
+                        {
+                            inventoryInfo = $" [✓{have}/{need}]";
+                        }
+                        else
+                        {
+                            inventoryInfo = $" [✗{have}/{need}]";
+                        }
+                    }
+
                     if (ing.Source == "Craft" && ing.SubCraftBreakdown is { Count: > 0 })
                     {
                         if (overBudget && config.HighlightOverBudgetIngredients)
-                            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName);
+                            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName + inventoryInfo);
                         else
-                            ImGui.Text(matName);
+                            ImGui.Text(matName + inventoryInfo);
                         ImGui.SameLine();
                         if (ImGui.SmallButton($"+##sub_{ing.ItemId}_{entry.RecipeId}"))
                         { /* toggle handled by TreeNode below */ }
@@ -291,9 +343,9 @@ public sealed class ShoppingListWindow : Window
                     else
                     {
                         if (overBudget && config.HighlightOverBudgetIngredients)
-                            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName);
+                            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), matName + inventoryInfo);
                         else
-                            ImGui.Text(matName);
+                            ImGui.Text(matName + inventoryInfo);
                     }
 
                     if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))

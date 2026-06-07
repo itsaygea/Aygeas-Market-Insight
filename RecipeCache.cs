@@ -32,6 +32,33 @@ public sealed class RecipeCache
     {
         this.log = log;
 
+        // Initialize collections first
+        itemIdToRecipes = new Dictionary<uint, List<Recipe>>();
+        recipeIdToRecipe = new Dictionary<uint, Recipe>();
+        vendorPrices = new Dictionary<uint, uint>();
+        itemNames = new Dictionary<uint, string>();
+        recipeInfoCache = new Dictionary<uint, RecipeInfo>();
+        craftCostCache = new Dictionary<uint, CachedCraftCost>();
+
+        // Load recipe data asynchronously to avoid blocking plugin initialization
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                LoadRecipes(dataManager);
+                LoadVendorPrices(dataManager);
+                BuildRecipeInfoCache();
+                log.Information($"RecipeCache initialized: {recipeIdToRecipe.Count} recipes, {vendorPrices.Count} vendor items");
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex, "Failed to initialize RecipeCache asynchronously");
+            }
+        });
+    }
+
+    private void LoadRecipes(IDataManager dataManager)
+    {
         var recipes = dataManager.GetExcelSheet<Recipe>();
         if (recipes == null)
         {
@@ -54,10 +81,6 @@ public sealed class RecipeCache
 
             list.Add(recipe);
         }
-
-        LoadVendorPrices(dataManager);
-        BuildRecipeInfoCache();
-        log.Information($"RecipeCache initialized: {recipeIdToRecipe.Count} recipes, {vendorPrices.Count} vendor items");
     }
 
     private void LoadVendorPrices(IDataManager dataManager)

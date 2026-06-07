@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
+using AygeaMarketInsight;
 
 namespace AygeaMarketInsight.UI;
 
@@ -46,7 +47,8 @@ public sealed class TooltipHook : IDisposable
         Configuration config,
         IObjectTable objectTable,
         IFramework framework,
-        IPluginLog log)
+        IPluginLog log,
+        InventoryScanner inventoryScanner)
     {
         this.gameGui = gameGui;
         this.recipeCache = recipeCache;
@@ -56,6 +58,7 @@ public sealed class TooltipHook : IDisposable
         this.objectTable = objectTable;
         this.framework = framework;
         this.log = log;
+        this.inventoryScanner = inventoryScanner;
 
         gameGui.HoveredItemChanged += OnHoveredItemChanged;
     }
@@ -235,32 +238,128 @@ public sealed class TooltipHook : IDisposable
         ImGui.Text("Aygea's Market Insight");
         ImGui.Separator();
 
-        if (config.ShowCraftCostInTooltips)
-            ImGui.Text($"Craft cost:   {craftCost:N0} gil");
-
-        if (config.ShowMbPriceInTooltips)
+        // Show inventory count if scanning is enabled
+        if (config.EnableInventoryScanning)
         {
-            ImGui.Text($"MB price:     {mbPriceRaw:N0} gil");
-            if (config.SalesTaxPercent > 0)
-                ImGui.TextDisabled($"  After tax:  {mbPriceAfterTax:N0} gil ({config.SalesTaxPercent:F0}%)");
+            uint have = inventoryScanner.GetItemQuantity(hoveredItemId);
+            ImGui.Text($"You have:     {have:N0}");
+            if (have > 0)
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled("(in inventory)");
+            }
+            ImGui.Separator();
         }
 
-        if (config.ShowCraftCostInTooltips && config.ShowMbPriceInTooltips)
+        // Check if we should show expanded tooltip (modifier key held)
+        bool showExpanded = false;
+        var io = ImGui.GetIO();
+        switch (config.TooltipPopoutModifierKey)
         {
-            var profitText = profit >= 0
-                ? $"Profit: {profit:N0} gil"
-                : $"Loss: {Math.Abs(profit):N0} gil";
+            case 0: showExpanded = true; break; // No modifier required - always show
+            case 1: showExpanded = io.KeyCtrl; break; // Ctrl
+            case 2: showExpanded = io.KeyShift; break; // Shift
+            case 3: showExpanded = io.KeyAlt; break; // Alt
+        }
 
-            if (config.ColorProfitLossText)
+        if (showExpanded)
+        {
+            // Expanded view with detailed breakdown
+            if (config.ShowCraftCostInTooltips)
+                ImGui.Text($"Craft cost:   {craftCost:N0} gil");
+
+            if (config.ShowMbPriceInTooltips)
             {
-                var color = profit >= 0
-                    ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
-                    : ImGui.ColorConvertU32ToFloat4(config.LossColor);
-                ImGui.TextColored(color, profitText);
+                ImGui.Text($"MB price:     {mbPriceRaw:N0} gil");
+                if (config.SalesTaxPercent > 0)
+                    ImGui.TextDisabled($"  After tax:  {mbPriceAfterTax:N0} gil ({config.SalesTaxPercent:F0}%)");
             }
-            else
+
+            if (config.ShowCraftCostInTooltips && config.ShowMbPriceInTooltips)
             {
-                ImGui.Text(profitText);
+                var profitText = profit >= 0
+                    ? $"Profit: {profit:N0} gil"
+                    : $"Loss: {Math.Abs(profit):N0} gil";
+
+                if (config.ColorProfitLossText)
+                {
+                    var color = profit >= 0
+                        ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
+                        : ImGui.ColorConvertU32ToFloat4(config.LossColor);
+                    ImGui.TextColored(color, profitText);
+                }
+                else
+                {
+                    ImGui.Text(profitText);
+                }
+            }
+
+            ImGui.Separator();
+
+            // Show ingredient breakdown
+            if (breakdown != null && breakdown.Count > 0)
+            {
+                ImGui.Text("Ingredients:");
+                foreach (var ing in breakdown)
+                {
+                    string sourceText = ing.Source switch
+                    {
+                        "Vendor" => "[Vendor]",
+                        "MB" => "[Market]",
+                        "Craft" => "[Craft]",
+                        _ => $"[{ing.Source}]"
+                    };
+
+                    ImGui.BulletText($"{sourceText} {recipeCache.GetItemName(ing.ItemId)} x{ing.Quantity} = {ing.TotalCost:N0} gil");
+                    
+                    // Show sub-craft breakdown if available
+                    if (ing.SubCraftBreakdown != null && ing.SubCraftBreakdown.Count > 0)
+                    {
+                        foreach (var sub in ing.SubCraftBreakdown)
+                        {
+                            string subSourceText = sub.Source switch
+                            {
+                                "Vendor" => "  ↳ [Vendor]",
+                                "MB" => "  ↳ [Market]",
+                                "Craft" => "  ↳ [Craft]",
+                                _ => $"  ↳ [{sub.Source}]"
+                            };
+                            ImGui.Text($"{subSourceText} {recipeCache.GetItemName(sub.ItemId)} x{sub.Quantity} = {sub.TotalCost:N0} gil");
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Compact view (original behavior)
+            if (config.ShowCraftCostInTooltips)
+                ImGui.Text($"Craft cost:   {craftCost:N0} gil");
+
+            if (config.ShowMbPriceInTooltips)
+            {
+                ImGui.Text($"MB price:     {mbPriceRaw:N0} gil");
+                if (config.SalesTaxPercent > 0)
+                    ImGui.TextDisabled($"  After tax:  {mbPriceAfterTax:N0} gil ({config.SalesTaxPercent:F0}%)");
+            }
+
+            if (config.ShowCraftCostInTooltips && config.ShowMbPriceInTooltips)
+            {
+                var profitText = profit >= 0
+                    ? $"Profit: {profit:N0} gil"
+                    : $"Loss: {Math.Abs(profit):N0} gil";
+
+                if (config.ColorProfitLossText)
+                {
+                    var color = profit >= 0
+                        ? ImGui.ColorConvertU32ToFloat4(config.ProfitColor)
+                        : ImGui.ColorConvertU32ToFloat4(config.LossColor);
+                    ImGui.TextColored(color, profitText);
+                }
+                else
+                {
+                    ImGui.Text(profitText);
+                }
             }
         }
 

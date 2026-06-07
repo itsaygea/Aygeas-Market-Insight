@@ -6,6 +6,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 using Lumina.Excel.Sheets;
+using AygeaMarketInsight;
 
 namespace AygeaMarketInsight.UI;
 
@@ -21,6 +22,7 @@ public sealed class ProfitScannerWindow : Window
     private readonly IFramework framework;
     private readonly IPluginLog log;
     private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
+    private readonly InventoryScanner inventoryScanner;
 
     private List<ScannerRow> rows = [];
 
@@ -65,7 +67,8 @@ public sealed class ProfitScannerWindow : Window
         IDataManager dataManager,
         IFramework framework,
         IPluginLog log,
-        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
+        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll,
+        InventoryScanner inventoryScanner)
         : base("Aygea's Market Insight — Profit Scanner###AMIScanner")
     {
         this.config = config;
@@ -78,6 +81,7 @@ public sealed class ProfitScannerWindow : Window
         this.framework = framework;
         this.log = log;
         this.refreshAll = refreshAll;
+        this.inventoryScanner = inventoryScanner;
 
         minProfit = config.DefaultMinProfitFilter;
         minIlvl = config.DefaultMinIlvlFilter;
@@ -196,6 +200,14 @@ public sealed class ProfitScannerWindow : Window
         ImGui.TableSetupColumn("MB Price (after tax)", ImGuiTableColumnFlags.DefaultSort, 110);
         ImGui.TableSetupColumn("Profit", ImGuiTableColumnFlags.DefaultSort, 90);
         ImGui.TableSetupColumn("Margin %", ImGuiTableColumnFlags.DefaultSort, 70);
+        
+        // Inventory-aware columns (only show if scanning is enabled)
+        if (config.EnableInventoryScanning)
+        {
+            ImGui.TableSetupColumn("Owned", ImGuiTableColumnFlags.DefaultSort, 50);
+            ImGui.TableSetupColumn("Craftable", ImGuiTableColumnFlags.DefaultSort, 70);
+        }
+        
         ImGui.TableSetupColumn("##add", ImGuiTableColumnFlags.NoSort, 30);
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableHeadersRow();
@@ -239,8 +251,50 @@ public sealed class ProfitScannerWindow : Window
             ImGui.TableSetColumnIndex(6);
             ImGui.Text($"{row.Margin:P0}");
 
+            // Inventory-aware columns (if scanning is enabled)
+            int currentCol = 7;
+            if (config.EnableInventoryScanning)
+            {
+                // Owned column
+                ImGui.TableSetColumnIndex(currentCol);
+                if (row.OwnedQuantity > 0)
+                {
+                    ImGui.Text($"{row.OwnedQuantity}");
+                    if (row.IsCraftableWithCurrentMaterials)
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled("(✓)");
+                    }
+                    else
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled("(✗)");
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled("0");
+                }
+                currentCol++;
+
+                // Craftable column (max craftable)
+                ImGui.TableSetColumnIndex(currentCol);
+                if (row.MaxCraftable > 0)
+                {
+                    var color = row.IsCraftableWithCurrentMaterials
+                        ? new System.Numerics.Vector4(0f, 0.8f, 0f, 1f) // Green if craftable
+                        : new System.Numerics.Vector4(0.8f, 0f, 0f, 1f); // Red if not craftable
+                    ImGui.TextColored(color, $"{row.MaxCraftable}");
+                }
+                else
+                {
+                    ImGui.TextDisabled("0");
+                }
+                currentCol++;
+            }
+
             // "+" button column
-            ImGui.TableSetColumnIndex(7);
+            ImGui.TableSetColumnIndex(currentCol);
             if (ImGui.SmallButton($"+##add_{row.RecipeId}"))
                 AddToShoppingList(row);
 
@@ -290,6 +344,12 @@ public sealed class ProfitScannerWindow : Window
 
         query = query.Where(r => enabledJobs.Contains(r.JobId));
 
+        // Add inventory-based filter if enabled
+        if (config.EnableInventoryScanning && config.ShowOnlyCraftableWithMaterials)
+        {
+            query = query.Where(r => r.IsCraftableWithCurrentMaterials);
+        }
+
         // Apply sorting
         query = sortDirection == ImGuiSortDirection.Ascending
             ? sortColumn switch
@@ -301,6 +361,9 @@ public sealed class ProfitScannerWindow : Window
                 4 => query.OrderBy(r => r.MbPrice),
                 5 => query.OrderBy(r => r.Profit),
                 6 => query.OrderBy(r => r.Margin),
+                // Inventory-aware sorting
+                7 => config.EnableInventoryScanning ? query.OrderBy(r => r.OwnedQuantity) : query,
+                8 => config.EnableInventoryScanning ? query.OrderBy(r => r.MaxCraftable) : query,
                 _ => query,
             }
             : sortColumn switch
@@ -312,6 +375,9 @@ public sealed class ProfitScannerWindow : Window
                 4 => query.OrderByDescending(r => r.MbPrice),
                 5 => query.OrderByDescending(r => r.Profit),
                 6 => query.OrderByDescending(r => r.Margin),
+                // Inventory-aware sorting (descending)
+                7 => config.EnableInventoryScanning ? query.OrderByDescending(r => r.OwnedQuantity) : query,
+                8 => config.EnableInventoryScanning ? query.OrderByDescending(r => r.MaxCraftable) : query,
                 _ => query,
             };
 
@@ -409,6 +475,18 @@ public sealed class ProfitScannerWindow : Window
             var info = recipeCache.GetRecipeInfo(recipeId);
             if (info == null) continue;
 
+            // Calculate inventory-aware properties if scanning is enabled
+            uint ownedQuantity = 0;
+            bool isCraftableWithCurrentMaterials = false;
+            uint maxCraftable = 0;
+
+            if (config.EnableInventoryScanning)
+            {
+                // Calculate how many of this item we can craft based on available materials
+                ownedQuantity = CalculateMaxCraftable(recipe, out maxCraftable);
+                isCraftableWithCurrentMaterials = ownedQuantity > 0;
+            }
+
             rows.Add(new ScannerRow
             {
                 RecipeId = recipeId,
@@ -425,6 +503,9 @@ public sealed class ProfitScannerWindow : Window
                 MaxDcPriceWorld = maxDcPriceWorld,
                 Profit = profit,
                 Margin = margin,
+                OwnedQuantity = ownedQuantity,
+                IsCraftableWithCurrentMaterials = isCraftableWithCurrentMaterials,
+                MaxCraftable = maxCraftable
             });
         }
 
@@ -467,6 +548,52 @@ public sealed class ProfitScannerWindow : Window
         OnAddToShoppingList?.Invoke();
     }
 
+    private uint CalculateMaxCraftable(Recipe recipe, out uint maxCraftable)
+    {
+        if (!config.EnableInventoryScanning || inventoryScanner == null)
+        {
+            maxCraftable = 0;
+            return 0;
+        }
+
+        // Calculate how many times we can craft this recipe based on available materials
+        uint minPossible = uint.MaxValue;
+        bool hasAllMaterials = true;
+
+        for (int i = 0; i < 8; i++)
+        {
+            var amount = (int)recipe.AmountIngredient[i];
+            var itemId = recipe.Ingredient[i].RowId;
+            if (amount <= 0 || itemId == 0) continue;
+
+            uint have = inventoryScanner.GetItemQuantity(itemId);
+            uint needPerCraft = (uint)amount;
+
+            if (needPerCraft > 0)
+            {
+                uint possibleForThisIngredient = have / needPerCraft;
+                if (possibleForThisIngredient < minPossible)
+                {
+                    minPossible = possibleForThisIngredient;
+                }
+
+                if (have < needPerCraft)
+                {
+                    hasAllMaterials = false;
+                }
+            }
+        }
+
+        if (!hasAllMaterials || minPossible == uint.MaxValue)
+        {
+            maxCraftable = 0;
+            return 0;
+        }
+
+        maxCraftable = minPossible;
+        return minPossible;
+    }
+
     private void OpenItemDetail(ScannerRow row)
     {
         var recipe = recipeCache.GetRecipe(row.RecipeId);
@@ -495,20 +622,25 @@ public sealed class ProfitScannerWindow : Window
     }
 }
 
-internal sealed class ScannerRow
-{
-    public uint RecipeId;
-    public uint ResultItemId;
-    public string ItemName = string.Empty;
-    public string LowerItemName = string.Empty;
-    public string JobName = string.Empty;
-    public byte JobId;
-    public int ItemLevel;
-    public uint CraftCost;
-    public uint MbPrice;
-    public uint HqPrice;
-    public uint MaxDcPrice;
-    public string MaxDcPriceWorld = string.Empty;
-    public int Profit;
-    public float Margin;
-}
+    internal sealed class ScannerRow
+    {
+        public uint RecipeId;
+        public uint ResultItemId;
+        public string ItemName = string.Empty;
+        public string LowerItemName = string.Empty;
+        public string JobName = string.Empty;
+        public byte JobId;
+        public int ItemLevel;
+        public uint CraftCost;
+        public uint MbPrice;
+        public uint HqPrice;
+        public uint MaxDcPrice;
+        public string MaxDcPriceWorld = string.Empty;
+        public int Profit;
+        public float Margin;
+        
+        // Inventory-aware properties (when scanning is enabled)
+        public uint OwnedQuantity;
+        public bool IsCraftableWithCurrentMaterials;
+        public uint MaxCraftable;
+    }

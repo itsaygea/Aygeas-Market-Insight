@@ -12,6 +12,7 @@ public sealed class PriceCache
     private readonly ConcurrentDictionary<uint, CachedPrice> cache = new();
     private readonly HashSet<uint> pendingFetches = [];
     private readonly object pendingLock = new();
+    private bool isDirty = false; // Tracks if cache has been modified since last save
 
     public int Generation { get; private set; }
 
@@ -51,6 +52,7 @@ public sealed class PriceCache
             ExpiresAt = DateTime.UtcNow + ttl,
         };
         Generation++;
+        isDirty = true;
 
         lock (pendingLock)
         {
@@ -76,6 +78,7 @@ public sealed class PriceCache
             ExpiresAt = DateTime.UtcNow + ttl,
         };
         Generation++;
+        isDirty = true;
 
         lock (pendingLock)
         {
@@ -89,6 +92,7 @@ public sealed class PriceCache
         {
             existing.MaxDcPrice = maxDcPrice;
             existing.MaxDcPriceWorld = maxDcPriceWorld;
+            isDirty = true;
         }
     }
 
@@ -103,6 +107,7 @@ public sealed class PriceCache
             }
         }
         Generation++;
+        isDirty = true;
     }
 
     public void Remove(uint itemId)
@@ -171,13 +176,21 @@ public sealed class PriceCache
     {
         try
         {
+            if (!isDirty)
+            {
+                // Skip save if no changes since last save
+                return;
+            }
+            
             var entries = GetAllEntries();
             var json = JsonSerializer.Serialize(entries, JsonOpts);
             File.WriteAllText(path, json);
+            isDirty = false; // Reset dirty flag after successful save
         }
         catch
         {
             // Best-effort save — don't crash on shutdown
+            // Note: We don't reset isDirty here so we'll retry next time
         }
     }
 

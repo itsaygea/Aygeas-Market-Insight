@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Dalamud.Game.Command;
+using Dalamud.Game.ClientState;
 using Dalamud.Game.Network.Structures;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
@@ -32,8 +33,14 @@ public sealed class Plugin : IDalamudPlugin
     private readonly UniversalisClient universalisClient;
     private readonly ArtisanIpc artisanIpc;
     private readonly PluginUI pluginUI;
+    private readonly InventoryScanner inventoryScanner;
 
     private readonly TooltipHook tooltipHook;
+
+    /// <summary>
+    /// Gets the inventory scanner for tracking crafting material quantities.
+    /// </summary>
+    public InventoryScanner InventoryScanner => inventoryScanner;
     private readonly string cacheFilePath;
     private DateTime lastCacheSave = DateTime.MinValue;
     private DateTime lastRefreshTime = DateTime.MinValue;
@@ -50,6 +57,7 @@ public sealed class Plugin : IDalamudPlugin
         IDataManager dataManager,
         IObjectTable objectTable,
         IFramework framework,
+        IClientState clientState,
         IPluginLog log,
         Dalamud.Plugin.Services.INotificationManager notificationManager)
     {
@@ -60,6 +68,7 @@ public sealed class Plugin : IDalamudPlugin
         this.log = log;
         this.dataManager = dataManager;
         this.framework = framework;
+        this.clientState = clientState;
 
         // Config
         config = Configuration.Load(pluginInterface);
@@ -73,17 +82,18 @@ public sealed class Plugin : IDalamudPlugin
         log.Information($"PriceCache loaded {loaded} cached prices from disk");
         universalisClient = new UniversalisClient(log);
         artisanIpc = new ArtisanIpc(pluginInterface, log);
+        inventoryScanner = new InventoryScanner(log, clientState, dataManager, framework);
 
         // UI
         var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log);
         System.Action<HashSet<uint>, System.Action<string>?, System.Action?> sharedRefresh = RefreshAllPrices;
         var scannerWindow = new ProfitScannerWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log, sharedRefresh);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log, sharedRefresh, inventoryScanner);
         var shoppingListWindow = new ShoppingListWindow(
-            config, recipeCache, priceCache, universalisClient, artisanIpc, notificationManager, framework, log, sharedRefresh);
+            config, recipeCache, priceCache, universalisClient, artisanIpc, notificationManager, framework, log, sharedRefresh, inventoryScanner);
 
         tooltipHook = new TooltipHook(
-            gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
+            gameGui, recipeCache, priceCache, universalisClient, config, objectTable, framework, log, inventoryScanner);
         var itemDetailPopout = new ItemDetailPopout(recipeCache, priceCache, universalisClient, config, objectTable, framework, log);
 
         var retainerWindow = new RetainerVentureWindow(

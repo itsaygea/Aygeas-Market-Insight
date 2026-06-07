@@ -46,6 +46,8 @@ public class Configuration : IPluginConfiguration
     public bool ResolveSubRecipesRecursively { get; set; } = true;
     public bool HighlightOverBudgetIngredients { get; set; } = true;
     public float TargetProfitMargin { get; set; } = 0.20f;
+    public bool EnableInventoryScanning { get; set; } = false;
+    public bool ShowOnlyCraftableWithMaterials { get; set; } = false;
 
     // Persisted shopping list
     public List<ShoppingListEntry> ShoppingListItems { get; set; } = [];
@@ -67,7 +69,95 @@ public class Configuration : IPluginConfiguration
     {
         var config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         config.pluginInterface = pluginInterface;
+        ValidateAndSanitizeConfig(config);
         return config;
+    }
+
+    private static void ValidateAndSanitizeConfig(Configuration config)
+    {
+        // Validate and sanitize general settings
+        config.EnableTooltipAugmentation = ValidateBool(config.EnableTooltipAugmentation, nameof(config.EnableTooltipAugmentation));
+        config.ShowFetchingPlaceholder = ValidateBool(config.ShowFetchingPlaceholder, nameof(config.ShowFetchingPlaceholder));
+        config.ShowCraftCostInTooltips = ValidateBool(config.ShowCraftCostInTooltips, nameof(config.ShowCraftCostInTooltips));
+        config.ShowMbPriceInTooltips = ValidateBool(config.ShowMbPriceInTooltips, nameof(config.ShowMbPriceInTooltips));
+        config.ColorProfitLossText = ValidateBool(config.ColorProfitLossText, nameof(config.ColorProfitLossText));
+        
+        // Validate numeric ranges
+        config.SalesTaxPercent = ValidateRange(config.SalesTaxPercent, 0f, 100f, nameof(config.SalesTaxPercent));
+        config.MbPriceCacheTtlMinutes = ValidateRange(config.MbPriceCacheTtlMinutes, 1, 10080, nameof(config.MbPriceCacheTtlMinutes)); // 1 min to 1 week
+        config.UniversalisCacheTtlMinutes = ValidateRange(config.UniversalisCacheTtlMinutes, 1, 43200, nameof(config.UniversalisCacheTtlMinutes)); // 1 min to 30 days
+        
+        // Validate color values (ensure they're valid ARGB)
+        config.ProfitColor = ValidateColor(config.ProfitColor, nameof(config.ProfitColor));
+        config.LossColor = ValidateColor(config.LossColor, nameof(config.LossColor));
+        
+        // Validate tooltip settings
+        config.EnableTooltipPopout = ValidateBool(config.EnableTooltipPopout, nameof(config.EnableTooltipPopout));
+        config.TooltipPopoutModifierKey = ValidateRange(config.TooltipPopoutModifierKey, 0, 3, nameof(config.TooltipPopoutModifierKey));
+        
+        // Validate profit scanner settings
+        config.RememberScannerWindowPos = ValidateBool(config.RememberScannerWindowPos, nameof(config.RememberScannerWindowPos));
+        config.DefaultMinProfitFilter = ValidateRange(config.DefaultMinProfitFilter, -1000000, 1000000, nameof(config.DefaultMinProfitFilter));
+        config.DefaultMinIlvlFilter = ValidateRange(config.DefaultMinIlvlFilter, 0, 130, nameof(config.DefaultMinIlvlFilter));
+        config.HqOnlyByDefault = ValidateBool(config.HqOnlyByDefault, nameof(config.HqOnlyByDefault));
+        config.ShowJobFilterBar = ValidateBool(config.ShowJobFilterBar, nameof(config.ShowJobFilterBar));
+        
+        // Validate shopping list settings
+        config.RememberPinState = ValidateBool(config.RememberPinState, nameof(config.RememberPinState));
+        config.PinnedWindowOpacity = ValidateRange(config.PinnedWindowOpacity, 0.1f, 1.0f, nameof(config.PinnedWindowOpacity));
+        config.ResolveSubRecipesRecursively = ValidateBool(config.ResolveSubRecipesRecursively, nameof(config.ResolveSubRecipesRecursives));
+        config.HighlightOverBudgetIngredients = ValidateBool(config.HighlightOverBudgetIngredients, nameof(config.HighlightOverBudgetIngredients));
+        config.TargetProfitMargin = ValidateRange(config.TargetProfitMargin, 0f, 1.0f, nameof(config.TargetProfitMargin));
+        config.EnableInventoryScanning = ValidateBool(config.EnableInventoryScanning, nameof(config.EnableInventoryScanning));
+        config.ShowOnlyCraftableWithMaterials = ValidateBool(config.ShowOnlyCraftableWithMaterials, nameof(config.ShowOnlyCraftableWithMaterials));
+        
+        // Ensure shopping list items are valid
+        if (config.ShoppingListItems != null)
+        {
+            // Remove any null entries
+            config.ShoppingListItems.RemoveAll(item => item == null);
+            
+            // Validate each entry
+            foreach (var entry in config.ShoppingListItems)
+            {
+                if (entry != null)
+                {
+                    entry.Quantity = Math.Max(1, entry.Quantity); // Ensure at least 1
+                    entry.RecipeName = entry.RecipeName ?? string.Empty;
+                    // Note: RecipeId and ResultItemId validation would require RecipeCache, which we don't have here
+                    // These are validated when the entry is actually used
+                }
+            }
+        }
+    }
+
+    private static bool ValidateBool(bool value, string fieldName)
+    {
+        // In a real implementation, we might log if the value was corrupted
+        // For bool, any value is technically valid, but we keep the method for consistency
+        return value;
+    }
+
+    private static T ValidateRange<T>(T value, T min, T max, string fieldName) where T : IComparable<T>
+    {
+        if (value.CompareTo(min) < 0)
+        {
+            // Log warning about value being below minimum
+            return min;
+        }
+        if (value.CompareTo(max) > 0)
+        {
+            // Log warning about value being above maximum
+            return max;
+        }
+        return value;
+    }
+
+    private static uint ValidateColor(uint value, string fieldName)
+    {
+        // Basic validation: ensure it's a valid 32-bit ARGB value
+        // More sophisticated validation could check for reasonable color values
+        return value;
     }
 }
 
