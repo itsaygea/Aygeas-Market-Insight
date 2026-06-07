@@ -4,12 +4,12 @@
   "Punchline": "Crafting profit tracker — compare craft cost vs market price.",
   "Description": "Crafting profit tracker — compare craft cost vs market price, scan for profitable recipes, and build shopping lists with max-price guidance. Made by Aygea (twitch.tv/crazyaygea)",
   "InternalName": "AygeaMarketInsight",
-  "AssemblyVersion": "1.0.3.37",
+  "AssemblyVersion": "1.0.3.38",
   "RepoUrl": "https://github.com/itsaygea/Aygeas-Market-Insight",
   "DonateButtonUrl": "https://ko-fi.com/aygea",
   "DalamudApiLevel": 15,
   "Tags": [ "market", "crafting", "profit", "tooltip", "shopping list", "universalis", "retainer" ],
   "ImageUrls": [],
   "IconUrl": "https://raw.githubusercontent.com/itsaygea/Aygeas-Market-Insight/main/icon.png",
-  "Changelog": "v1.0.3.37 — Fix build: missing fields, usings, and typos from inventory scanner integration."
+  "Changelog": "v1.0.3.38 — Fix retainer venture prices not loading: remove shared rate limit that blocked retainer refreshes."
 }

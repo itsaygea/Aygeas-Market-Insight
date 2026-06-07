@@ -47,9 +47,6 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime lastRefreshTime = DateTime.MinValue;
     private bool isRefreshingAll;
 
-    /// <summary>Minimum seconds between refreshes to avoid API abuse.</summary>
-    private const int MinRefreshIntervalSeconds = 15;
-
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
@@ -246,14 +243,6 @@ public sealed class Plugin : IDalamudPlugin
 
         var worldId = GetWorldId();
         if (worldId == 0) { onComplete?.Invoke(); return; }
-
-        // Rate limit: don't allow refreshes more often than every 30 seconds
-        if ((DateTime.UtcNow - lastRefreshTime).TotalSeconds < MinRefreshIntervalSeconds)
-        {
-            onProgress?.Invoke($"Wait {MinRefreshIntervalSeconds - (int)(DateTime.UtcNow - lastRefreshTime).TotalSeconds}s between refreshes");
-            onComplete?.Invoke();
-            return;
-        }
 
         var staleIds = itemIds.Where(id => priceCache.Get(id) == null && !priceCache.IsPending(id)).ToHashSet();
 
