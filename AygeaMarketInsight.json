@@ -4,12 +4,12 @@
   "Punchline": "Crafting profit tracker — compare craft cost vs market price.",
   "Description": "Crafting profit tracker — compare craft cost vs market price, scan for profitable recipes, and build shopping lists with max-price guidance. Made by Aygea (twitch.tv/crazyaygea)",
   "InternalName": "AygeaMarketInsight",
-  "AssemblyVersion": "1.0.3.35",
+  "AssemblyVersion": "1.0.3.36",
   "RepoUrl": "https://github.com/itsaygea/Aygeas-Market-Insight",
   "DonateButtonUrl": "https://ko-fi.com/aygea",
   "DalamudApiLevel": 15,
   "Tags": [ "market", "crafting", "profit", "tooltip", "shopping list", "universalis", "retainer" ],
   "ImageUrls": [],
   "IconUrl": "https://raw.githubusercontent.com/itsaygea/Aygeas-Market-Insight/main/icon.png",
-  "Changelog": "v1.0.3.35 — Added lightweight inventory scanner with shopping list and tooltip integration. Enhanced tooltips with expanded view on modifier key. Added inventory-aware columns and filtering to profit scanner. Improved configuration validation and asynchronous initialization."
+  "Changelog": "v1.0.3.36 — Fix build: stub inventory scanning pending Dalamud API support. Expanded tooltip view with modifier key toggle. Config validation and async recipe init."
 }

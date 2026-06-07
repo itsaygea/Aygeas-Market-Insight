@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Dalamud.Game.ClientState.Inventory;
 using Dalamud.Plugin.Services;
 
 namespace AygeaMarketInsight;
@@ -42,8 +41,8 @@ public sealed class InventoryScanner : IDisposable
         this.dataManager = dataManager;
         this.framework = framework;
         
-        // Subscribe to inventory update events for optional real-time updates
-        clientState.InventoryUpdate += OnInventoryUpdate;
+        // Inventory scanning requires FFXIV internal structures not exposed via Dalamud API 15.
+        // Actual scanning is deferred until a compatible API is available.
     }
     
     /// <summary>
@@ -295,60 +294,9 @@ public sealed class InventoryScanner : IDisposable
     
     private void ScanPlayerInventory(HashSet<uint> itemsToTrack, CancellationToken token)
     {
-        // Progressive scanning: process inventory in small batches to prevent hitches
-        const int batchSize = 20; // Process 20 slots at a time
-        
-        var inventory = clientState.Inventory;
-        if (inventory == null) return;
-        
-        // Get all inventory containers (main inventory + satchels)
-        var containers = new[]
-        {
-            inventory.MainInventory,
-            inventory.Satchel1,
-            inventory.Satchel2,
-            inventory.Satchel3,
-            inventory.Satchel4
-        };
-        
-        int processedSlots = 0;
-        
-        foreach (var container in containers)
-        {
-            if (container == null) continue;
-            
-            // Process this container in batches
-            for (int i = 0; i < container.Size; i += batchSize)
-            {
-                token.ThrowIfCancellationRequested();
-                
-                int endIndex = Math.Min(i + batchSize, container.Size);
-                
-                for (int j = i; j < endIndex; j++)
-                {
-                    if (!container.TryGetItem(j, out var item)) continue;
-                    
-                    // Only track items we're interested in
-                    if (itemsToTrack.Contains(item.DataId))
-                    {
-                        // Add to existing quantity (stacks across slots)
-                        itemQuantities.AddOrUpdate(
-                            item.DataId,
-                            (ushort)item.Quantity,
-                            (id, oldQty) => (ushort)Math.Min(ushort.MaxValue, oldQty + item.Quantity)
-                        );
-                    }
-                }
-                
-                processedSlots += (endIndex - i);
-                
-                // Yield control periodically to prevent hitches
-                if (processedSlots % 100 == 0)
-                {
-                    Thread.Sleep(1); // Sleep for 1ms to yield to UI thread
-                }
-            }
-        }
+        // Inventory container access requires FFXIV internal structures not exposed via Dalamud API 15.
+        // This method is a placeholder — actual scanning will be implemented when the API is available.
+        log.Debug("Inventory scanning not yet available on current Dalamud API level");
     }
     
     private void ScanRetainerInventories(HashSet<uint> itemsToTrack, CancellationToken token)
@@ -363,17 +311,10 @@ public sealed class InventoryScanner : IDisposable
         // log.Debug("Retainer scanning not yet implemented in lightweight scanner");
     }
     
-    private void OnInventoryUpdate(object? sender, InventoryUpdateEventArgs e)
-    {
-        // Optional: Handle inventory updates for real-time scanning
-        // This would be configurable to avoid excessive scanning
-        // For now, we rely on manual scanning to keep performance predictable
-    }
     
     public void Dispose()
     {
-        // Unsubscribe from events
-        clientState.InventoryUpdate -= OnInventoryUpdate;
+        // No event subscription to clean up
         
         // Stop any ongoing scan
         StopScanning();
