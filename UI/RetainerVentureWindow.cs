@@ -20,7 +20,6 @@ public sealed class RetainerVentureWindow : Window
     private readonly IFramework framework;
     private readonly INotificationManager notificationManager;
     private readonly IPluginLog log;
-    private readonly System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll;
 
     // Targeted tab state
     private List<VentureRow> rows = [];
@@ -66,8 +65,7 @@ public sealed class RetainerVentureWindow : Window
         IObjectTable objectTable,
         IFramework framework,
         INotificationManager notificationManager,
-        IPluginLog log,
-        System.Action<HashSet<uint>, System.Action<string>?, System.Action?> refreshAll)
+        IPluginLog log)
         : base("Aygea's Market Insight — Retainer Ventures###AMIRetainer")
     {
         this.config = config;
@@ -78,7 +76,6 @@ public sealed class RetainerVentureWindow : Window
         this.framework = framework;
         this.notificationManager = notificationManager;
         this.log = log;
-        this.refreshAll = refreshAll;
 
         Size = new Vector2(900, 600);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -774,6 +771,19 @@ public sealed class RetainerVentureWindow : Window
     {
         if (isLoading) return;
 
+        // Get world ID directly from player data
+        var worldId = objectTable.LocalPlayer?.HomeWorld.RowId ?? 0;
+        if (worldId == 0)
+        {
+            notificationManager.AddNotification(new Notification
+            {
+                Content = "Could not detect your home world. Are you logged in?",
+                Title = "Refresh Failed",
+                Type = NotificationType.Error,
+            });
+            return;
+        }
+
         isLoading = true;
         loadingStatus = "collecting items...";
 
@@ -786,23 +796,61 @@ public sealed class RetainerVentureWindow : Window
                 ids.Add(dropId);
 
         var fetchCount = ids.Count;
-        refreshAll(ids,
-            status => loadingStatus = status ?? string.Empty,
-            () =>
+        var ttl = config.UniversalisCacheTtlMinutes;
+
+#pragma warning disable CS4014
+        _ = Task.Run(async () =>
+        {
+            try
             {
-                BuildRows();
-                if (selectedExploration >= 0)
-                    BuildSelectedDrops();
-                lastRefreshTime = DateTime.UtcNow;
-                isLoading = false;
-                loadingStatus = string.Empty;
-                notificationManager.AddNotification(new Notification
+                framework.RunOnFrameworkThread(() =>
+                    loadingStatus = $"fetching {fetchCount} items...");
+
+                var results = await universalisClient.FetchPrices(worldId, ids, ttl,
+                    (done, total) => framework.RunOnFrameworkThread(() =>
+                        loadingStatus = $"fetching {done}/{total}"));
+
+                framework.RunOnFrameworkThread(() =>
                 {
-                    Content = $"Updated prices for {fetchCount} items",
-                    Title = "Prices Refreshed",
-                    Type = NotificationType.Success,
+                    foreach (var kvp in results)
+                    {
+                        var p = kvp.Value;
+                        priceCache.SetFull(kvp.Key, p.NqPrice, p.HqPrice,
+                            0, string.Empty, p.NqSaleVelocity, p.HqSaleVelocity,
+                            p.Source, TimeSpan.FromMinutes(ttl), p.NqDcPrice, p.NqDcPriceWorld);
+                    }
+
+                    BuildRows();
+                    if (selectedExploration >= 0)
+                        BuildSelectedDrops();
+                    lastRefreshTime = DateTime.UtcNow;
+                    isLoading = false;
+                    loadingStatus = string.Empty;
+                    notificationManager.AddNotification(new Notification
+                    {
+                        Content = $"Updated prices for {fetchCount} items",
+                        Title = "Prices Refreshed",
+                        Type = NotificationType.Success,
+                    });
                 });
-            });
+            }
+            catch (Exception ex)
+            {
+                log.Warning(ex, "Retainer price refresh failed");
+                framework.RunOnFrameworkThread(() =>
+                {
+                    isLoading = false;
+                    loadingStatus = string.Empty;
+                    notificationManager.AddNotification(new Notification
+                    {
+                        Content = $"Price refresh failed: {ex.Message}",
+                        Title = "Refresh Error",
+                        Type = NotificationType.Error,
+                    });
+                });
+            }
+        });
+#pragma warning restore CS4014
     }
 }
 
