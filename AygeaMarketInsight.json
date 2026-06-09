@@ -11,5 +11,5 @@
   "Tags": [ "market", "crafting", "profit", "tooltip", "shopping list", "universalis", "retainer" ],
   "ImageUrls": [],
   "IconUrl": "https://raw.githubusercontent.com/itsaygea/Aygeas-Market-Insight/main/icon.png",
-  "Changelog": "v1.0.3.40 — Fix retainer venture prices: direct Universalis fetch bypasses shared refresh that was silently failing."
+  "Changelog": "v1.0.3.41 — Better retainer price loading: prominent status, diagnostic logging, warning when no prices loaded."
 }

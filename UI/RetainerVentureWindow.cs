@@ -157,10 +157,17 @@ public sealed class RetainerVentureWindow : Window
 
         if (isLoading)
         {
+            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
             if (rows.Count > 0)
-                ImGui.TextDisabled($"Updating... {loadingStatus}  (showing cached data)");
+                ImGui.Text($"Updating prices... {loadingStatus}  (showing cached data)");
             else
-                ImGui.TextDisabled($"Loading prices... {loadingStatus}");
+                ImGui.Text($"Loading prices... {loadingStatus}");
+            ImGui.PopStyleColor();
+        }
+        else if (rows.Count > 0 && rows.All(r => r.MbPrice == 0))
+        {
+            ImGui.TextColored(new Vector4(0.8f, 0.5f, 0.2f, 1f),
+                "No prices loaded yet — click Refresh Prices or wait for auto-refresh.");
         }
 
         DrawTargetedTable();
@@ -797,6 +804,7 @@ public sealed class RetainerVentureWindow : Window
 
         var fetchCount = ids.Count;
         var ttl = config.UniversalisCacheTtlMinutes;
+        log.Information($"Retainer refresh: fetching {fetchCount} items for world {worldId}");
 
 #pragma warning disable CS4014
         _ = Task.Run(async () =>
@@ -810,17 +818,23 @@ public sealed class RetainerVentureWindow : Window
                     (done, total) => framework.RunOnFrameworkThread(() =>
                         loadingStatus = $"fetching {done}/{total}"));
 
+                log.Information($"Retainer refresh: got {results.Count} results from Universalis");
+
                 framework.RunOnFrameworkThread(() =>
                 {
+                    var priced = 0;
                     foreach (var kvp in results)
                     {
                         var p = kvp.Value;
+                        if (p.NqPrice > 0) priced++;
                         priceCache.SetFull(kvp.Key, p.NqPrice, p.HqPrice,
                             0, string.Empty, p.NqSaleVelocity, p.HqSaleVelocity,
                             p.Source, TimeSpan.FromMinutes(ttl), p.NqDcPrice, p.NqDcPriceWorld);
                     }
 
                     BuildRows();
+                    var rowsWithPrice = rows.Count(r => r.MbPrice > 0);
+                    log.Information($"Retainer refresh: {priced} items have NQ price, {rowsWithPrice}/{rows.Count} rows show MB price");
                     if (selectedExploration >= 0)
                         BuildSelectedDrops();
                     lastRefreshTime = DateTime.UtcNow;
@@ -828,7 +842,7 @@ public sealed class RetainerVentureWindow : Window
                     loadingStatus = string.Empty;
                     notificationManager.AddNotification(new Notification
                     {
-                        Content = $"Updated prices for {fetchCount} items",
+                        Content = $"Updated prices for {fetchCount} items ({rowsWithPrice} priced)",
                         Title = "Prices Refreshed",
                         Type = NotificationType.Success,
                     });
