@@ -187,6 +187,8 @@ public sealed class RetainerVentureWindow : Window
         ImGui.SetNextItemWidth(120);
         ImGui.InputInt("Min Gil/Hr", ref minGilPerHour, 100);
 
+        DrawTargetedLegend();
+
         ImGui.Spacing();
         foreach (var (name, type) in TypeToggles)
         {
@@ -206,6 +208,26 @@ public sealed class RetainerVentureWindow : Window
         }
 
         ImGui.NewLine();
+    }
+
+    private void DrawTargetedLegend()
+    {
+        ImGui.SameLine();
+        ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "(?)");
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.BeginTooltip();
+            ImGui.Text("Column highlights:");
+            ImGui.TextColored(new Vector4(0f, 0.8f, 0f, 1f), "  Green");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("— Best Gil/Hr");
+            ImGui.TextColored(new Vector4(0.4f, 0.6f, 1f, 1f), "  Blue");
+            ImGui.SameLine();
+            ImGui.TextUnformatted("— Best XP reward");
+            ImGui.Spacing();
+            ImGui.Text("Double-click item name to copy it.");
+            ImGui.EndTooltip();
+        }
     }
 
     private void DrawTargetedTable()

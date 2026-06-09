@@ -14,12 +14,14 @@ public sealed class UniversalisClient : IDisposable
     private readonly IPluginLog log;
     private readonly HttpClient http;
     private readonly SemaphoreSlim concurrencyLimit = new(4);
+    private readonly Func<uint, string>? worldNameResolver;
     /// <summary>Delay between batches to avoid hammering Universalis.</summary>
     private static readonly TimeSpan BatchDelay = TimeSpan.FromMilliseconds(250);
 
-    public UniversalisClient(IPluginLog log)
+    public UniversalisClient(IPluginLog log, Func<uint, string>? worldNameResolver = null)
     {
         this.log = log;
+        this.worldNameResolver = worldNameResolver;
 
         var version = typeof(UniversalisClient).Assembly.GetName().Version?.ToString() ?? "1.0.0";
         http = new HttpClient
@@ -133,11 +135,23 @@ public sealed class UniversalisClient : IDisposable
         return results;
     }
 
-    private static string GetWorldName(JsonElement listing, string scope)
+    private string GetWorldName(JsonElement listing, string scope)
     {
         if (!listing.TryGetProperty(scope, out var el)) return string.Empty;
-        if (!el.TryGetProperty("worldName", out var w)) return string.Empty;
-        return w.ValueKind == JsonValueKind.Null ? string.Empty : w.GetString() ?? string.Empty;
+        // Try worldName first (non-aggregated endpoint)
+        if (el.TryGetProperty("worldName", out var wn) && wn.ValueKind != JsonValueKind.Null)
+        {
+            var name = wn.GetString();
+            if (!string.IsNullOrEmpty(name)) return name;
+        }
+        // Fall back to worldId (aggregated endpoint returns ID, not name)
+        if (el.TryGetProperty("worldId", out var wid) && wid.ValueKind != JsonValueKind.Null)
+        {
+            var worldId = wid.GetUInt32();
+            if (worldId > 0 && worldNameResolver != null)
+                return worldNameResolver(worldId);
+        }
+        return string.Empty;
     }
 
     private static uint GetPrice(JsonElement listing, string scope)

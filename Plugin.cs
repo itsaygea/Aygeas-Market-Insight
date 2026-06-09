@@ -78,7 +78,13 @@ public sealed class Plugin : IDalamudPlugin
         cacheFilePath = Path.Combine(pluginInterface.GetPluginConfigDirectory(), "price_cache.json");
         var loaded = priceCache.LoadFromFile(cacheFilePath);
         log.Information($"PriceCache loaded {loaded} cached prices from disk");
-        universalisClient = new UniversalisClient(log);
+        universalisClient = new UniversalisClient(log, id =>
+        {
+            var worlds = dataManager.GetExcelSheet<World>();
+            foreach (var w in worlds)
+                if (w.RowId == id) return w.Name.ToString();
+            return string.Empty;
+        });
         artisanIpc = new ArtisanIpc(pluginInterface, log);
         inventoryScanner = new InventoryScanner(log, clientState, dataManager, framework);
 
