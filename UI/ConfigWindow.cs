@@ -139,15 +139,11 @@ public sealed class ConfigWindow : Window
         ImGui.Text("Inventory Scanning");
         ImGui.Separator();
 
-        var invEnabled = config.EnableInventoryScanning;
-        if (Checkbox("Enable inventory scanning", invEnabled, v =>
+        Checkbox("Enable inventory scanning", config.EnableInventoryScanning, v =>
         {
             config.EnableInventoryScanning = v;
             inventoryScanner?.SetEnabled(v);
-        }))
-        {
-            // nothing extra needed, callback handles it
-        }
+        });
         ImGui.TextDisabled("Shows how many materials you already own in the shopping list and profit scanner.");
         ImGui.TextDisabled("Scans your bags, saddlebag, and open retainers.");
 
