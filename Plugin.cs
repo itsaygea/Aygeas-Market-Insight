@@ -88,8 +88,11 @@ public sealed class Plugin : IDalamudPlugin
         artisanIpc = new ArtisanIpc(pluginInterface, log);
         inventoryScanner = new InventoryScanner(log, clientState, dataManager, framework);
 
+        if (config.EnableInventoryScanning)
+            inventoryScanner.SetEnabled(true);
+
         // UI
-        var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log);
+        var configWindow = new ConfigWindow(config, artisanIpc, dataManager, objectTable, log, inventoryScanner);
         System.Action<HashSet<uint>, System.Action<string>?, System.Action?> sharedRefresh = RefreshAllPrices;
         var scannerWindow = new ProfitScannerWindow(
             config, recipeCache, priceCache, universalisClient, artisanIpc, objectTable, dataManager, framework, log, sharedRefresh, inventoryScanner);

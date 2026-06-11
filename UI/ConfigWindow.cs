@@ -16,10 +16,11 @@ public sealed class ConfigWindow : Window
     private readonly IPluginLog log;
     private readonly IDataManager dataManager;
     private readonly IObjectTable objectTable;
+    private readonly InventoryScanner? inventoryScanner;
 
     private List<(uint Id, string Name)>? dcWorlds;
 
-    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IDataManager dataManager, IObjectTable objectTable, IPluginLog log)
+    public ConfigWindow(Configuration config, ArtisanIpc artisanIpc, IDataManager dataManager, IObjectTable objectTable, IPluginLog log, InventoryScanner? inventoryScanner = null)
         : base("Aygea's Market Insight — Settings###AMIConfig")
     {
         this.config = config;
@@ -27,6 +28,7 @@ public sealed class ConfigWindow : Window
         this.log = log;
         this.dataManager = dataManager;
         this.objectTable = objectTable;
+        this.inventoryScanner = inventoryScanner;
 
         Size = new System.Numerics.Vector2(500, 500);
         SizeCondition = ImGuiCond.FirstUseEver;
@@ -132,6 +134,22 @@ public sealed class ConfigWindow : Window
         }
 
         ImGui.TextDisabled("Sets your world for accurate buy-side pricing.");
+
+        ImGui.Spacing();
+        ImGui.Text("Inventory Scanning");
+        ImGui.Separator();
+
+        var invEnabled = config.EnableInventoryScanning;
+        if (Checkbox("Enable inventory scanning", invEnabled, v =>
+        {
+            config.EnableInventoryScanning = v;
+            inventoryScanner?.SetEnabled(v);
+        }))
+        {
+            // nothing extra needed, callback handles it
+        }
+        ImGui.TextDisabled("Shows how many materials you already own in the shopping list and profit scanner.");
+        ImGui.TextDisabled("Scans your bags, saddlebag, and open retainers.");
 
         ImGui.Spacing();
         ImGui.Text("Item Detail Popout");

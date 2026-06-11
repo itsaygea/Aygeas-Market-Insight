@@ -2,324 +2,168 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
-using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace AygeaMarketInsight;
 
-/// <summary>
-/// Lightweight inventory scanner focused on tracking quantities of crafting-relevant items.
-/// Designed to be disabled by default and manually activated to minimize performance impact.
-/// </summary>
-public sealed class InventoryScanner : IDisposable
+public sealed unsafe class InventoryScanner : IDisposable
 {
     private readonly IPluginLog log;
-    private readonly IClientState clientState;
-    private readonly IDataManager dataManager;
     private readonly IFramework framework;
-    
-    // Inventory scanning state
-    private bool isEnabled = false;
-    private bool isScanning = false;
+
+    private bool isEnabled;
+    private bool isScanning;
     private DateTime lastScanTime = DateTime.MinValue;
-    private readonly TimeSpan scanCacheTtl = TimeSpan.FromSeconds(60); // Cache results for 60 seconds
-    
-    // Item ID -> quantity mapping (lightweight, only stores what we need)
-    private readonly ConcurrentDictionary<uint, ushort> itemQuantities = new();
-    
-    // Track which items we're interested in to optimize scanning
-    private readonly HashSet<uint> trackedItemIds = new();
+    private readonly TimeSpan minScanInterval = TimeSpan.FromSeconds(5);
+
+    private readonly ConcurrentDictionary<uint, uint> itemQuantities = new();
+    private readonly HashSet<uint> trackedItemIds = [];
     private readonly object trackedLock = new();
-    
-    // Cancellation for progressive scanning
-    private CancellationTokenSource? scanCts;
-    
+
+    // Player inventory containers
+    private static readonly InventoryType[] PlayerContainers =
+    [
+        InventoryType.Inventory1, InventoryType.Inventory2, InventoryType.Inventory3, InventoryType.Inventory4,
+        InventoryType.SaddleBag1, InventoryType.SaddleBag2,
+        InventoryType.PremiumSaddleBag1, InventoryType.PremiumSaddleBag2,
+    ];
+
+    // Retainer containers (only populated while retainer bell is open)
+    private static readonly InventoryType[] RetainerContainers =
+    [
+        InventoryType.RetainerPage1, InventoryType.RetainerPage2, InventoryType.RetainerPage3,
+        InventoryType.RetainerPage4, InventoryType.RetainerPage5, InventoryType.RetainerPage6,
+        InventoryType.RetainerPage7,
+    ];
+
     public InventoryScanner(IPluginLog log, IClientState clientState, IDataManager dataManager, IFramework framework)
     {
         this.log = log;
-        this.clientState = clientState;
-        this.dataManager = dataManager;
         this.framework = framework;
-        
-        // Inventory scanning requires FFXIV internal structures not exposed via Dalamud API 15.
-        // Actual scanning is deferred until a compatible API is available.
     }
-    
-    /// <summary>
-    /// Enable or disable the inventory scanner.
-    /// When disabled, all scanning stops and cached data is cleared.
-    /// </summary>
+
     public void SetEnabled(bool enabled)
     {
         if (isEnabled == enabled) return;
-        
         isEnabled = enabled;
-        
+
         if (!enabled)
         {
-            // Disable scanning and clear data when turned off
-            StopScanning();
-            ClearData();
+            itemQuantities.Clear();
+            log.Information("Inventory scanner disabled");
         }
         else
         {
-            // When enabling, do an initial scan if we have tracked items
-            if (HasTrackedItems)
-            {
+            log.Information("Inventory scanner enabled");
+            if (trackedItemIds.Count > 0)
                 RequestScan();
-            }
         }
-        
-        log.Information($"Inventory scanner {(enabled ? "enabled" : "disabled")}");
     }
-    
-    /// <summary>
-    /// Add items to track for inventory scanning.
-    /// Only these items will be scanned to minimize overhead.
-    /// </summary>
+
+    public bool IsEnabled => isEnabled;
+
     public void TrackItems(IEnumerable<uint> itemIds)
     {
-        if (itemIds == null) return;
-        
         lock (trackedLock)
         {
-            foreach (var itemId in itemIds)
-            {
-                if (itemId != 0)
-                {
-                    trackedItemIds.Add(itemId);
-                }
-            }
+            foreach (var id in itemIds)
+                if (id != 0) trackedItemIds.Add(id);
         }
-        
-        // If we're enabled and now have items to track, request a scan
-        if (isEnabled && HasTrackedItems && !isScanning)
-        {
+
+        if (isEnabled && trackedItemIds.Count > 0)
             RequestScan();
-        }
     }
-    
-    /// <summary>
-    /// Remove items from tracking.
-    /// </summary>
+
     public void UntrackItems(IEnumerable<uint> itemIds)
     {
-        if (itemIds == null) return;
-        
         lock (trackedLock)
         {
-            foreach (var itemId in itemIds)
-            {
-                trackedItemIds.Remove(itemId);
-            }
-        }
-        
-        // Clear quantities for untracked items to free memory
-        foreach (var itemId in itemIds)
-        {
-            itemQuantities.TryRemove(itemId, out _);
+            foreach (var id in itemIds)
+                trackedItemIds.Remove(id);
         }
     }
-    
-    /// <summary>
-    /// Get the quantity of an item in inventory (0 if not tracked or not found).
-    /// </summary>
-    public ushort GetItemQuantity(uint itemId)
+
+    public uint GetItemQuantity(uint itemId)
     {
         if (itemId == 0) return 0;
-        return itemQuantities.TryGetValue(itemId, out var quantity) ? quantity : (ushort)0;
+        return itemQuantities.TryGetValue(itemId, out var qty) ? qty : 0;
     }
-    
-    /// <summary>
-    /// Check if we have at least the required quantity of an item.
-    /// </summary>
-    public bool HasItemQuantity(uint itemId, ushort requiredQuantity)
+
+    public bool HasItemQuantity(uint itemId, uint requiredQuantity)
     {
         return GetItemQuantity(itemId) >= requiredQuantity;
     }
-    
-    /// <summary>
-    /// Request an inventory scan (non-blocking).
-    /// If a scan is already in progress, this will be ignored unless force is true.
-    /// </summary>
+
     public void RequestScan(bool force = false)
     {
-        if (!isEnabled) return;
-        
-        // Don't scan too frequently unless forced
-        if (!force && (DateTime.UtcNow - lastScanTime) < TimeSpan.FromSeconds(5))
-        {
-            return;
-        }
-        
-        // Don't start a new scan if one is already running (unless forcing)
-        if (!force && isScanning) 
-        {
-            return;
-        }
-        
-        // If we have nothing to track, don't scan
-        if (!HasTrackedItems)
-        {
-            return;
-        }
-        
-        // Start the scan
-        StartScan();
-    }
-    
-    /// <summary>
-    /// Get a snapshot of all tracked item quantities.
-    /// Returns a copy to avoid modification during enumeration.
-    /// </summary>
-    public IReadOnlyDictionary<uint, ushort> GetAllQuantities()
-    {
-        // Return a copy to prevent external modification of our internal dictionary
-        var copy = new Dictionary<uint, ushort>(itemQuantities.Count);
-        foreach (var kvp in itemQuantities)
-        {
-            copy[kvp.Key] = kvp.Value;
-        }
-        return copy;
-    }
-    
-    // Private implementation methods
-    
-    private bool HasTrackedItems
-    {
-        get
-        {
-            lock (trackedLock)
-            {
-                return trackedItemIds.Count > 0;
-            }
-        }
-    }
-    
-    private void StopScanning()
-    {
-        scanCts?.Cancel();
-        scanCts?.Dispose();
-        scanCts = null;
-        isScanning = false;
-    }
-    
-    private void ClearData()
-    {
-        itemQuantities.Clear();
-        lock (trackedLock)
-        {
-            trackedItemIds.Clear();
-        }
-        lastScanTime = DateTime.MinValue;
-    }
-    
-    private void StartScan()
-    {
-        if (isScanning) return;
-        
+        if (!isEnabled || isScanning) return;
+        if (!force && (DateTime.UtcNow - lastScanTime) < minScanInterval) return;
+
         isScanning = true;
         lastScanTime = DateTime.UtcNow;
-        
-        // Create new cancellation token for this scan
-        scanCts?.Dispose();
-        scanCts = new CancellationTokenSource();
-        var token = scanCts.Token;
-        
-        // Run scan on background thread to avoid blocking UI
-        _ = Task.Run(() => PerformScan(token), token)
-            .ContinueWith(t =>
-            {
-                // Handle completion or cancellation
-                isScanning = false;
-                scanCts?.Dispose();
-                scanCts = null;
-                
-                if (t.IsCanceled)
-                {
-                    log.Debug("Inventory scan was canceled");
-                }
-                else if (t.IsFaulted)
-                {
-                    log.Error(t.Exception, "Inventory scan failed");
-                }
-                else
-                {
-                    log.Debug($"Inventory scan completed at {lastScanTime:HH:mm:ss}");
-                }
-            }, TaskScheduler.FromCurrentSynchronizationContext());
+        framework.RunOnFrameworkThread(() =>
+        {
+            PerformScan();
+            isScanning = false;
+        });
     }
-    
-    private void PerformScan(CancellationToken token)
+
+    public IReadOnlyDictionary<uint, uint> GetAllQuantities()
     {
-        try
+        var copy = new Dictionary<uint, uint>(itemQuantities.Count);
+        foreach (var kvp in itemQuantities)
+            copy[kvp.Key] = kvp.Value;
+        return copy;
+    }
+
+    private void PerformScan()
+    {
+        HashSet<uint> itemsToTrack;
+        lock (trackedLock)
         {
-            // Clear previous quantities before scanning
-            itemQuantities.Clear();
-            
-            // Get the items we need to track
-            HashSet<uint> itemsToTrack;
-            lock (trackedLock)
-            {
-                itemsToTrack = new HashSet<uint>(trackedItemIds);
-            }
-            
-            if (itemsToTrack.Count == 0) 
-            {
-                return;
-            }
-            
-            // Scan player inventory (main focus)
-            ScanPlayerInventory(itemsToTrack, token);
-            
-            // Optionally scan retainers (only those recently accessed to minimize API calls)
-            if (!token.IsCancellationRequested)
-            {
-                ScanRetainerInventories(itemsToTrack, token);
-            }
-            
-            log.Debug($"Inventory scan finished. Tracked {itemsToTrack.Count} items, found quantities for {itemQuantities.Count} items.");
+            itemsToTrack = new HashSet<uint>(trackedItemIds);
         }
-        catch (OperationCanceledException)
+
+        if (itemsToTrack.Count == 0) return;
+
+        itemQuantities.Clear();
+
+        var invManager = InventoryManager.Instance();
+        if (invManager == null) return;
+
+        ScanContainers(invManager, PlayerContainers, itemsToTrack);
+        ScanContainers(invManager, RetainerContainers, itemsToTrack);
+    }
+
+    private void ScanContainers(InventoryManager* invManager, InventoryType[] containers, HashSet<uint> itemsToTrack)
+    {
+        foreach (var type in containers)
         {
-            // Expected when scan is canceled
-            throw;
-        }
-        catch (Exception ex)
-        {
-            log.Error(ex, "Error during inventory scan");
-            throw;
+            var container = invManager->GetInventoryContainer(type);
+            if (container == null || !container->IsLoaded) continue;
+
+            for (int i = 0; i < container->Size; i++)
+            {
+                var item = container->GetInventorySlot(i);
+                if (item == null) continue;
+
+                var itemId = item->ItemId;
+                if (itemId == 0) continue;
+
+                if (itemsToTrack.Contains(itemId))
+                {
+                    var qty = (uint)item->Quantity;
+                    itemQuantities.AddOrUpdate(itemId, qty, (_, old) => old + qty);
+                }
+            }
         }
     }
-    
-    private void ScanPlayerInventory(HashSet<uint> itemsToTrack, CancellationToken token)
-    {
-        // Inventory container access requires FFXIV internal structures not exposed via Dalamud API 15.
-        // This method is a placeholder — actual scanning will be implemented when the API is available.
-        log.Debug("Inventory scanning not yet available on current Dalamud API level");
-    }
-    
-    private void ScanRetainerInventories(HashSet<uint> itemsToTrack, CancellationToken token)
-    {
-        // For now, we'll keep retainer scanning simple to avoid complexity
-        // In a full implementation, we would:
-        // 1. Only scan retainers the player has opened recently
-        // 2. Use progressive scanning similar to player inventory
-        // 3. Handle retainer visitation/api calls appropriately
-        
-        // Placeholder for retainer scanning - to be implemented based on specific needs
-        // log.Debug("Retainer scanning not yet implemented in lightweight scanner");
-    }
-    
-    
+
     public void Dispose()
     {
-        // No event subscription to clean up
-        
-        // Stop any ongoing scan
-        StopScanning();
-        
-        // Clear data
-        ClearData();
+        isEnabled = false;
+        itemQuantities.Clear();
+        lock (trackedLock) trackedItemIds.Clear();
     }
 }
